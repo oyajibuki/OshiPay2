@@ -6,11 +6,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OshiPay - その感動、今すぐカタチに。</title>
 
-  <!-- Tailwind CSS (CDN) -->
-  <script src="https://cdn.tailwindcss.com"></script>
-
-  <!-- Lucide Icons (CDN) -->
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Tailwind CSS (ビルド済み・警告なし) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" />
 
   <!-- カスタムアニメーション設定 -->
   <style>
@@ -28,6 +25,11 @@
     .fade-in-section.is-visible {
       opacity: 1;
       transform: translateY(0);
+    }
+
+    /* スムーズなスクロール */
+    html {
+      scroll-behavior: smooth;
     }
   </style>
 </head>
@@ -59,7 +61,7 @@
       <a href="#security" class="hover:text-white transition-colors">安全性</a>
       <a href="javascript:void(0)"
         onclick="window.parent.postMessage({type: 'navigate', url: '/?page=dashboard'}, '*');"
-        class="px-4 py-2 bg-white/10 rounded-full hover:bg-white/20 transition-all text-white">はじめる</a>
+        class="px-4 py-2 bg-white/10 rounded-full hover:bg-white/20 transition-all text-white no-underline">はじめる</a>
     </nav>
   </header>
 
@@ -333,7 +335,7 @@
             </div>
             <h3 class="text-2xl md:text-3xl font-bold mb-4">安心の決済システムと、完全なプライバシー保護。</h3>
             <p class="text-lg text-slate-400 mb-8 font-light leading-relaxed">
-              世界基準のセキュリティを誇る <span class="text-white font-medium">Stripe決済</span> を利用。
+              世界基準のセキュリティを誇る <span class="text-white font-medium">Stripe決済</span> を利用.
               さらに、応援者と受取人の<span
                 class="text-white font-medium border-b border-green-500/50 pb-0.5">個人名、住所、決済情報やメッセージは運営側（OshiPay）には一切知られません。</span><br
                 class="hidden md:block" />
@@ -384,7 +386,7 @@
   </section>
 
   <!-- フッター -->
-  <footer class="border-t border-white/10 mt-12 py-12 relative z-10">
+  <footer class="border-t border-white/10 mt-12 py-12 relative z-10 pb-20">
     <div class="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
       <div class="flex items-center gap-2">
         <i data-lucide="flame" class="text-orange-500 w-6 h-6"></i>
@@ -399,9 +401,6 @@
   <!-- スクリプト制御 (アイコン初期化・スクロールアニメーション) -->
   <script>
     document.addEventListener("DOMContentLoaded", function () {
-      // Lucideアイコンのレンダリング
-      lucide.createIcons();
-
       // スクロール時のフェードインアニメーション処理
       const observer = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
@@ -417,30 +416,16 @@
 
       const fadeElements = document.querySelectorAll('.fade-in-section');
       fadeElements.forEach(el => observer.observe(el));
-
-      // アンカーリンク（#）クリック時に親ウィンドウをスクロールさせる処理
-      document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-        anchor.addEventListener('click', function (e) {
-          e.preventDefault();
-          const targetId = this.getAttribute('href').substring(1);
-          const targetElement = document.getElementById(targetId);
-          if (targetElement) {
-            const rect = targetElement.getBoundingClientRect();
-            const absoluteTop = rect.top + window.pageYOffset;
-            // 親ウィンドウ（Streamlit側）をスクロールさせる
-            try {
-              window.parent.scrollTo({
-                top: absoluteTop,
-                behavior: 'smooth'
-              });
-            } catch (err) {
-              // Same-originでない場合のフォールバック（iframe内スクロール）
-              targetElement.scrollIntoView({ behavior: 'smooth' });
-            }
-          }
-        });
-      });
     });
+  </script>
+
+  <!-- Lucide Icons: body末尾で読み込み → 確実にDOMより後に実行 -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script>
+    // lucide が読み込まれたら即アイコンを初期化
+    if (typeof lucide !== 'undefined') {
+      lucide.createIcons();
+    }
   </script>
 </body>
 

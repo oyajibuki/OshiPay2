@@ -633,32 +633,38 @@ page = params.get("page", "lp")
 
 # ページ種類に応じた動的なCSS適用 (LPのみフルワイド)
 if page == "lp":
+    # 巧妙な方法で親ウィンドウにメッセージリスナーを注入し、iframeを全画面に固定
     st.markdown("""
-    <style>
-    /* LPページをフルスクリーンとして扱う */
-    .stMainBlockContainer, .block-container {
-        max-width: none !important;
-        padding: 0 !important;
-    }
-    iframe { 
-        border: none !important; 
-        width: 100% !important;
-        display: block !important;
-    }
-    /* Streamlit固有の要素を徹底的に隠す */
-    [data-testid="stHeader"] { display: none !important; }
-    footer { display: none !important; }
-    .stAppViewMain { overflow: auto !important; }
-    </style>
-    
-    <script>
-    // LP (iframe) からの「画面移動」メッセージを待機するブリッジ
-    window.addEventListener('message', function(e) {
-        if (e.data && e.data.type === 'navigate') {
-            window.top.location.href = e.data.url;
+        <style>
+        /* LPページを画面全体に固定表示し、iframe自身のスクロールに任せる */
+        .stMainBlockContainer, .block-container {
+            max-width: none !important;
+            padding: 0 !important;
         }
-    });
-    </script>
+        iframe { 
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 999999 !important;
+            border: none !important;
+        }
+        /* 親画面のスクロールとヘッダーを完全に消す */
+        [data-testid="stHeader"], footer { display: none !important; }
+        .stApp { overflow: hidden !important; }
+        </style>
+        
+        <img src="x" onerror="
+            if (!window.oshi_bridge_active) {
+                window.oshi_bridge_active = true;
+                window.addEventListener('message', function(e) {
+                    if (e.data && e.data.type === 'navigate') {
+                        window.location.href = e.data.url;
+                    }
+                });
+            }
+        " style="display:none;">
     """, unsafe_allow_html=True)
 else:
     st.markdown("""
@@ -805,12 +811,13 @@ elif page == "lp":
             with open(lp_path, "r", encoding="utf-8") as f:
                 lp_html = f.read()
             
-            # 念のため target="_top" も維持しつつ、JSブリッジを補助的に残す（HTML側で実装済みの場合はそちらが優先）
-            lp_html = lp_html.replace('href="?page=dashboard"', 'href="/?page=dashboard" target="_top"')
-            lp_html = lp_html.replace('href="/?page=dashboard"', 'href="/?page=dashboard" target="_top"')
+            # リンクをブリッジ通信形式に確実に置換
+            lp_html = lp_html.replace('href="?page=dashboard"', 'href="javascript:void(0)" onclick="window.parent.postMessage({type:\'navigate\', url:\'/?page=dashboard\'}, \'*\');"')
+            lp_html = lp_html.replace('href="/?page=dashboard"', 'href="javascript:void(0)" onclick="window.parent.postMessage({type:\'navigate\', url:\'/?page=dashboard\'}, \'*\');"')
             
-            # 高度を十分に確保（iPhoneでの見切れを完全に防ぐため 8000px）
-            st.components.v1.html(lp_html, height=8000, scrolling=False)
+            # scrolling=True にして iframe内のスクロールを有効化
+            # (CSSの position: fixed; height: 100vh; によって画面全域をカバー)
+            st.components.v1.html(lp_html, height=1000, scrolling=True)
         except Exception as e:
             st.error(f"LPの読み込み中にエラーが発生しました: {e}")
     else:
