@@ -177,7 +177,7 @@ def generate_qr_base64(data: str) -> str:
     buffered = io.BytesIO()
     qr_img.save(buffered, format="PNG")
     img_str = base64.b64encode(buffered.getvalue()).decode()
-    return f"data:image/png;base64,{img_str}"
+    return img_str
 
 
 def get_qr_bytes(data: str) -> bytes:
