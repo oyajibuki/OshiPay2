@@ -579,6 +579,8 @@ support_user = params.get("user", "")
 support_name = params.get("name", "")
 support_icon = params.get("icon", "🎤")
 connect_acct = params.get("acct", "")  # Stripe Connect アカウントID
+success_name = params.get("s_name", "")  # 決済成功時の名前
+success_amount = params.get("s_amt", "") # 決済成功時の金額
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -623,8 +625,15 @@ if page == "success":
     st.markdown('<div class="section-subtitle">あなたの応援が届きました！<br>温かいサポート、ありがとうございます 🙏✨</div>', unsafe_allow_html=True)
     st.markdown('<div class="oshi-divider"></div>', unsafe_allow_html=True)
 
-    share_text = "OshiPay で応援しました！🔥 #OshiPay"
-    st.link_button("𝕏 でシェア", f"https://twitter.com/intent/tweet?text={share_text}", use_container_width=True)
+    # Xシェア文言のカスタマイズ
+    if success_name and success_amount:
+        share_text = f"{success_name}さんに{success_amount}円 応援したよ！\nhttps://oshipay.streamlit.app/ \n#OshiPay"
+    else:
+        share_text = "OshiPay で応援しました！🔥 #OshiPay"
+    
+    import urllib.parse
+    encoded_text = urllib.parse.quote(share_text)
+    st.link_button("𝕏 でシェア", f"https://twitter.com/intent/tweet?text={encoded_text}", use_container_width=True)
 
     st.markdown('<div class="oshi-footer animate-fade-in delay-3">Powered by <a href="?page=dashboard">OshiPay</a></div>', unsafe_allow_html=True)
 
@@ -718,7 +727,7 @@ elif page == "support" and support_user:
                         "quantity": 1,
                     }],
                     "mode": "payment",
-                    "success_url": f"{BASE_URL}?page=success",
+                    "success_url": f"{BASE_URL}?page=success&s_name={display_name}&s_amt={amount}",
                     "cancel_url": f"{BASE_URL}?page=cancel",
                     "metadata": {
                         "user_id": support_user,
