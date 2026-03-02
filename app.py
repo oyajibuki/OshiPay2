@@ -52,13 +52,57 @@ BASE_URL = os.environ.get("APP_URL", "https://oshipay.streamlit.app")
 # Stripe Connect ヘルパー関数
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def create_connect_account():
-    """Stripe Express接続アカウントを作成"""
+    """Stripe Express接続アカウントを作成（テストデータ事前入力済み）"""
     account = stripe.Account.create(
         type="express",
         country="JP",
         capabilities={
             "card_payments": {"requested": True},
             "transfers": {"requested": True},
+        },
+        business_type="individual",
+        individual={
+            "first_name": "太郎",
+            "last_name": "テスト",
+            "first_name_kana": "タロウ",
+            "last_name_kana": "テスト",
+            "first_name_kanji": "太郎",
+            "last_name_kanji": "テスト",
+            "dob": {"day": 1, "month": 1, "year": 1990},
+            "gender": "male",
+            "email": "test@example.com",
+            "phone": "+810000000000",
+            "address_kana": {
+                "postal_code": "1500001",
+                "state": "トウキョウト",
+                "city": "シブヤク",
+                "town": "ジングウマエ",
+                "line1": "1-1-1",
+            },
+            "address_kanji": {
+                "postal_code": "1500001",
+                "state": "東京都",
+                "city": "渋谷区",
+                "town": "神宮前",
+                "line1": "1-1-1",
+            },
+        },
+        business_profile={
+            "mcc": "7922",
+            "product_description": "OshiPay - 投げ銭サービス",
+        },
+        external_account={
+            "object": "bank_account",
+            "country": "JP",
+            "currency": "jpy",
+            "account_holder_name": "テスト タロウ",
+            "account_holder_type": "individual",
+            "routing_number": "1100000",
+            "account_number": "0001234",
+        },
+        tos_acceptance={
+            "date": int(__import__("time").time()),
+            "ip": "127.0.0.1",
         },
     )
     return account.id
