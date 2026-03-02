@@ -52,7 +52,7 @@ BASE_URL = os.environ.get("APP_URL", "https://oshipay.streamlit.app")
 # Stripe Connect ヘルパー関数
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def create_connect_account():
-    """Stripe Express接続アカウントを作成（テストデータ事前入力済み）"""
+    """Stripe Express接続アカウントを作成"""
     account = stripe.Account.create(
         type="express",
         country="JP",
@@ -61,44 +61,9 @@ def create_connect_account():
             "transfers": {"requested": True},
         },
         business_type="individual",
-        individual={
-            "first_name": "太郎",
-            "last_name": "テスト",
-            "first_name_kana": "タロウ",
-            "last_name_kana": "テスト",
-            "first_name_kanji": "太郎",
-            "last_name_kanji": "テスト",
-            "dob": {"day": 1, "month": 1, "year": 1990},
-            "gender": "male",
-            "email": "test@example.com",
-            "phone": "+818000000000",
-            "address_kana": {
-                "postal_code": "1500001",
-                "state": "トウキョウト",
-                "city": "シブヤク",
-                "town": "ジングウマエ",
-                "line1": "1-1-1",
-            },
-            "address_kanji": {
-                "postal_code": "1500001",
-                "state": "東京都",
-                "city": "渋谷区",
-                "town": "神宮前",
-                "line1": "1-1-1",
-            },
-        },
         business_profile={
             "mcc": "7922",
             "product_description": "OshiPay - 投げ銭サービス",
-        },
-        external_account={
-            "object": "bank_account",
-            "country": "JP",
-            "currency": "jpy",
-            "account_holder_name": "テスト タロウ",
-            "account_holder_type": "individual",
-            "routing_number": "1100000",
-            "account_number": "0001234",
         },
     )
     return account.id
@@ -782,7 +747,7 @@ elif page == "support" and support_user:
             except Exception as e:
                 st.error(f"決済エラー: {e}")
 
-    st.markdown('<p style="text-align:center;margin-top:14px;font-size:11px;color:rgba(240,240,245,0.35);">クレジットカードで安全にお支払い（Stripe）</p>', unsafe_allow_html=True)
+    st.markdown('<p style="text-align:center;margin-top:14px;font-size:11px;color:rgba(240,240,245,0.35);line-height:1.6;">クレジットカードで安全にお支払い（Stripe）<br>応援額の90%がクリエイターに届きます</p>', unsafe_allow_html=True)
     st.markdown('<div class="oshi-footer animate-fade-in delay-3">Powered by <a href="?page=dashboard">OshiPay</a> ― 応援を、もっとシンプルに。</div>', unsafe_allow_html=True)
 
 
@@ -846,7 +811,7 @@ else:
             except Exception as e:
                 st.error(f"エラー: {e}")
 
-        st.markdown('<p style="text-align:center;font-size:11px;color:rgba(240,240,245,0.3);margin-top:8px;">本人確認・銀行口座の登録を行います（無料）</p>', unsafe_allow_html=True)
+        st.markdown('<p style="text-align:center;font-size:11px;color:rgba(240,240,245,0.3);margin-top:8px;line-height:1.8;">本人確認・振込先の登録を行います（無料）<br>🔒 個人情報・口座情報はStripeが安全に管理し、運営側には開示されません<br>応援額の90%があなたに支払われます（10%はシステム利用料）</p>', unsafe_allow_html=True)
 
     # ── ステップ2: QRコード生成（Stripe連携済みの場合のみ） ──
     if acct_ready:
