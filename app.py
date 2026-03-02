@@ -525,7 +525,7 @@ if page == "success":
     # ロゴ
     st.markdown('<div class="oshi-logo animate-fade-in"><span class="icon">🔥</span> <span class="text">OshiPay</span></div>', unsafe_allow_html=True)
 
-    st.markdown('<div class="glass-card animate-slide-up delay-1">', unsafe_allow_html=True)
+
     st.markdown('<div class="success-icon">🎉</div>', unsafe_allow_html=True)
     st.markdown('<div class="section-title">応援完了！</div>', unsafe_allow_html=True)
     st.markdown('<div class="section-subtitle">あなたの応援が届きました！<br>温かいサポート、ありがとうございます 🙏✨</div>', unsafe_allow_html=True)
@@ -534,7 +534,6 @@ if page == "success":
     share_text = "OshiPay で応援しました！🔥 #OshiPay"
     st.link_button("𝕏 でシェア", f"https://twitter.com/intent/tweet?text={share_text}", use_container_width=True)
 
-    st.markdown('</div>', unsafe_allow_html=True)
     st.markdown('<div class="oshi-footer animate-fade-in delay-3">Powered by <a href="?page=dashboard">OshiPay</a></div>', unsafe_allow_html=True)
 
 
@@ -544,11 +543,11 @@ if page == "success":
 elif page == "cancel":
     st.markdown('<div class="oshi-logo animate-fade-in"><span class="icon">🔥</span> <span class="text">OshiPay</span></div>', unsafe_allow_html=True)
 
-    st.markdown('<div class="glass-card animate-slide-up delay-1">', unsafe_allow_html=True)
+
     st.markdown('<div style="text-align:center;font-size:64px;margin-bottom:16px;">🤔</div>', unsafe_allow_html=True)
     st.markdown('<div class="section-title">キャンセルしました</div>', unsafe_allow_html=True)
     st.markdown('<div class="section-subtitle">決済はキャンセルされました。<br>またいつでも応援できます！<br>お気持ちだけで嬉しいです 😊</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+
 
     st.markdown('<div class="oshi-footer animate-fade-in delay-3">Powered by <a href="?page=dashboard">OshiPay</a></div>', unsafe_allow_html=True)
 
@@ -563,7 +562,7 @@ elif page == "support" and support_user:
     st.markdown('<div class="oshi-logo animate-fade-in"><span class="icon">🔥</span> <span class="text">OshiPay</span></div>', unsafe_allow_html=True)
     st.markdown('<div class="oshi-tagline animate-fade-in delay-1">その感動、今すぐカタチに。</div>', unsafe_allow_html=True)
 
-    st.markdown('<div class="glass-card animate-slide-up delay-2">', unsafe_allow_html=True)
+
 
     # アバター・名前
     st.markdown(f'<div class="support-avatar">🎤</div>', unsafe_allow_html=True)
@@ -640,8 +639,6 @@ elif page == "support" and support_user:
                 st.error(f"決済エラー: {e}")
 
     st.markdown('<p style="text-align:center;margin-top:14px;font-size:11px;color:rgba(240,240,245,0.35);">クレジットカードで安全にお支払い（Stripe）</p>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-
     st.markdown('<div class="oshi-footer animate-fade-in delay-3">Powered by <a href="?page=dashboard">OshiPay</a> ― 応援を、もっとシンプルに。</div>', unsafe_allow_html=True)
 
 
@@ -653,7 +650,7 @@ else:
     st.markdown('<div class="oshi-logo animate-fade-in"><span class="icon">🔥</span> <span class="text">OshiPay</span></div>', unsafe_allow_html=True)
     st.markdown('<div class="oshi-tagline animate-fade-in delay-1">応援を、もっとシンプルに。</div>', unsafe_allow_html=True)
 
-    st.markdown('<div class="glass-card animate-slide-up delay-2">', unsafe_allow_html=True)
+
     st.markdown('<div class="section-title">QRコードを発行</div>', unsafe_allow_html=True)
     st.markdown('<div class="section-subtitle">あなた専用のQRコードを作成して<br>応援を受け取りましょう</div>', unsafe_allow_html=True)
 
@@ -695,6 +692,6 @@ else:
                 if st.button("📋 URLコピー", use_container_width=True):
                     st.code(support_url, language=None)
 
-    st.markdown('</div>', unsafe_allow_html=True)
+
 
     st.markdown('<div class="oshi-footer animate-fade-in delay-3">Powered by <a href="#">OshiPay</a></div>', unsafe_allow_html=True)
