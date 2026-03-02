@@ -15,11 +15,30 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# Stripe設定
-stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "sk_test_xxxxx")
+# Stripe設定（st.secrets → 環境変数 のフォールバック）
+try:
+    stripe.api_key = st.secrets["STRIPE_SECRET"]
+except Exception:
+    stripe.api_key = os.environ.get("STRIPE_SECRET", "")
 
 # プリセット金額
 PRESET_AMOUNTS = [100, 500, 1000, 10000, 30000]
+
+# アイコン選択肢
+ICON_OPTIONS = {
+    "🎤": "歌手・MC",
+    "🎸": "ギター・バンド",
+    "🎹": "ピアノ・キーボード",
+    "🎨": "アーティスト・絵描き",
+    "📷": "カメラマン・写真家",
+    "☕": "カフェ・バリスタ",
+    "✂️": "美容師・理容師",
+    "🎮": "ゲーマー・配信者",
+    "📚": "講師・先生",
+    "💻": "エンジニア・クリエイター",
+    "🎭": "役者・パフォーマー",
+    "🔥": "その他",
+}
 
 
 def generate_qr_base64(data: str) -> str:
@@ -229,6 +248,23 @@ footer {visibility: hidden;}
     border-color: #8b5cf6;
     background: rgba(139,92,246,0.15);
     box-shadow: 0 0 20px rgba(139,92,246,0.3), inset 0 0 20px rgba(139,92,246,0.05);
+}
+
+/* ── Columns内ボタン（金額＆アイコン）はカードスタイル ── */
+div[data-testid="stHorizontalBlock"] .stButton > button {
+    background: rgba(255,255,255,0.04) !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    box-shadow: none !important;
+    border-radius: 14px !important;
+    padding: 12px 8px !important;
+    font-size: 22px !important;
+    transition: all 0.2s ease !important;
+}
+div[data-testid="stHorizontalBlock"] .stButton > button:hover {
+    background: rgba(139,92,246,0.1) !important;
+    border-color: #8b5cf6 !important;
+    transform: translateY(-2px) !important;
+    box-shadow: none !important;
 }
 
 /* ── 金額表示 ── */
@@ -487,6 +523,7 @@ params = st.query_params
 page = params.get("page", "dashboard")
 support_user = params.get("user", "")
 support_name = params.get("name", "")
+support_icon = params.get("icon", "🎤")
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -564,8 +601,8 @@ elif page == "support" and support_user:
 
 
 
-    # アバター・名前
-    st.markdown(f'<div class="support-avatar">🎤</div>', unsafe_allow_html=True)
+    # アバター・名前（選択されたアイコンを表示）
+    st.markdown(f'<div class="support-avatar">{support_icon}</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="support-name">{display_name}</div>', unsafe_allow_html=True)
     st.markdown('<div class="support-label">を応援しよう</div>', unsafe_allow_html=True)
     st.markdown('<div class="oshi-divider"></div>', unsafe_allow_html=True)
@@ -657,6 +694,29 @@ else:
     creator_name = st.text_input("表示名", placeholder="例: ストリートミュージシャン太郎", max_chars=50)
     user_id = st.text_input("ユーザーID（任意）", placeholder="自動生成されます", max_chars=20)
 
+    # アイコン選択
+    st.markdown('<p style="font-size:12px;font-weight:600;color:rgba(240,240,245,0.6);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;margin-top:8px;">アイコンを選択</p>', unsafe_allow_html=True)
+
+    icon_cols = st.columns(6)
+    icon_list = list(ICON_OPTIONS.keys())
+    if "selected_icon" not in st.session_state:
+        st.session_state.selected_icon = "🎤"
+
+    for i, emoji in enumerate(icon_list):
+        with icon_cols[i % 6]:
+            label = ICON_OPTIONS[emoji]
+            is_selected = st.session_state.selected_icon == emoji
+            if st.button(
+                emoji,
+                key=f"icon_{i}",
+                help=label,
+                use_container_width=True,
+            ):
+                st.session_state.selected_icon = emoji
+
+    # 選択中のアイコン表示
+    st.markdown(f'<div style="text-align:center;margin:8px 0;"><span style="font-size:40px;">{st.session_state.selected_icon}</span><br><span style="font-size:12px;color:rgba(240,240,245,0.5);">{ICON_OPTIONS[st.session_state.selected_icon]}</span></div>', unsafe_allow_html=True)
+
     if st.button("✨ QRコードを生成", use_container_width=True):
         if not creator_name:
             st.warning("表示名を入力してください")
@@ -665,7 +725,8 @@ else:
                 user_id = str(uuid.uuid4())[:8]
 
             base_url = os.environ.get("APP_URL", "https://oshipay.streamlit.app")
-            support_url = f"{base_url}?page=support&user={user_id}&name={creator_name}"
+            selected_icon = st.session_state.selected_icon
+            support_url = f"{base_url}?page=support&user={user_id}&name={creator_name}&icon={selected_icon}"
 
             qr_b64 = generate_qr_base64(support_url)
             qr_bytes = get_qr_bytes(support_url)
