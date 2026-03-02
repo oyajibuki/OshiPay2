@@ -635,23 +635,20 @@ page = params.get("page", "lp")
 if page == "lp":
     st.markdown("""
     <style>
-    /* LPページをフルスクリーンアイフレームとして扱う */
+    /* LPページをフルスクリーンとして扱う */
     .stMainBlockContainer, .block-container {
         max-width: none !important;
         padding: 0 !important;
-        height: 100vh !important;
-        overflow: hidden !important;
     }
     iframe { 
         border: none !important; 
         width: 100% !important;
-        height: 100vh !important;
+        display: block !important;
     }
-    /* 親ウィンドウ（Streamlit）自体のスクロールを抑制 */
-    .stApp { overflow: hidden !important; }
-    .stApp::before { display: none !important; }
-    header[data-testid="stHeader"] { display: none !important; }
+    /* Streamlit固有の要素を徹底的に隠す */
+    [data-testid="stHeader"] { display: none !important; }
     footer { display: none !important; }
+    .stAppViewMain { overflow: auto !important; }
     </style>
     """, unsafe_allow_html=True)
 else:
@@ -799,11 +796,13 @@ elif page == "lp":
             with open(lp_path, "r", encoding="utf-8") as f:
                 lp_html = f.read()
             
-            # リンクの置換（index.html側で既に対応済みだが念のため不整合を防ぐ）
-            lp_html = lp_html.replace('href="?page=dashboard"', 'href="?page=dashboard" target="_top"')
+            # リンクの正規化（親ウィンドウへ確実に遷移させる）
+            lp_html = lp_html.replace('href="?page=dashboard"', 'href="/?page=dashboard" target="_top"')
+            lp_html = lp_html.replace('href="/?page=dashboard"', 'href="/?page=dashboard" target="_top"')
             
-            # scrolling=True にすることで、iframe内での自然なスクロールを許可
-            st.components.v1.html(lp_html, height=1000, scrolling=True)
+            # 高度を十分に確保（iPhoneでの見切れを防ぐ）
+            # scrolling=False にして親スクロールに任せる
+            st.components.v1.html(lp_html, height=4800, scrolling=False)
         except Exception as e:
             st.error(f"LPの読み込み中にエラーが発生しました: {e}")
     else:
