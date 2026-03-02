@@ -4,6 +4,7 @@ import base64
 import uuid
 
 import streamlit as st
+import streamlit.components.v1 as components
 import stripe
 import qrcode
 
@@ -670,8 +671,12 @@ elif page == "support" and support_user:
                         "display_name": display_name,
                     },
                 )
-                st.markdown(f'<meta http-equiv="refresh" content="0;url={session.url}">', unsafe_allow_html=True)
-                st.link_button("💳 決済ページへ（自動で遷移しない場合）", session.url, use_container_width=True)
+                # JavaScriptでStripe決済ページへリダイレクト
+                components.html(
+                    f'<script>window.top.location.href = "{session.url}";</script>',
+                    height=0,
+                )
+                st.link_button("💳 自動で遷移しない場合はこちら", session.url, use_container_width=True)
             except Exception as e:
                 st.error(f"決済エラー: {e}")
 
