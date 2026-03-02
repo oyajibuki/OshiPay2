@@ -726,17 +726,17 @@ elif page == "support" and support_user:
                     },
                 }
 
-                # Stripe Connect: クリエイターへの自動振り分け
+                # Stripe Connect: ダイレクト支払い（売り手が直接回収するモデル）
                 if connect_acct:
                     fee = int(amount * PLATFORM_FEE_PERCENT / 100)
                     checkout_params["payment_intent_data"] = {
                         "application_fee_amount": fee,
-                        "transfer_data": {
-                            "destination": connect_acct,
-                        },
                     }
-
-                session = stripe.checkout.Session.create(**checkout_params)
+                    # 連結アカウント（クリエイター）の権限でセッションを作成
+                    session = stripe.checkout.Session.create(**checkout_params, stripe_account=connect_acct)
+                else:
+                    # 通常決済（テスト用またはプラットフォーム受取用）
+                    session = stripe.checkout.Session.create(**checkout_params)
 
                 # JavaScriptでStripe決済ページへリダイレクト
                 components.html(
