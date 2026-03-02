@@ -1,4 +1,4 @@
-flask
+streamlit
 stripe
 qrcode
 pillow
