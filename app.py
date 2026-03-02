@@ -71,7 +71,7 @@ def create_connect_account():
             "dob": {"day": 1, "month": 1, "year": 1990},
             "gender": "male",
             "email": "test@example.com",
-            "phone": "+810000000000",
+            "phone": "+818000000000",
             "address_kana": {
                 "postal_code": "1500001",
                 "state": "トウキョウト",
