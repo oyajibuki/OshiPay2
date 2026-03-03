@@ -204,9 +204,11 @@ if page == "success":
             if creator_email:
                 ok, err = send_support_email(creator_email, s_name, s_amt, s_msg)
                 if not ok:
-                    st.warning(f"通知メールの送信に失敗しました: {err}")
+                    st.error(f"⚠️ 通知メールの送信に失敗しました。Secretsの設定（SMTP_PASSなど）を確認してください。\nエラー内容: {err}")
+                else:
+                    st.success("✅ クリエイターへ応援通知メールを送信しました！")
         except Exception as mail_err:
-            st.warning(f"メール送信処理でエラーが発生しました: {mail_err}")
+            st.error(f"❌ メール送信処理中に予期せぬエラーが発生しました: {mail_err}")
     share_text = f"応援したよ！\n{BASE_URL} #OshiPay"
     st.link_button("𝕏 でシェア", f"https://twitter.com/intent/tweet?text={urllib.parse.quote(share_text)}", use_container_width=True)
     st.markdown(f'<div class="oshi-footer">Powered by <a href="{BASE_URL}?page=dashboard">OshiPay</a></div>', unsafe_allow_html=True)
