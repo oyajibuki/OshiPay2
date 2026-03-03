@@ -819,6 +819,23 @@ elif page == "lp":
             st.error(f"LPの読み込み中にエラーが発生しました: {e}")
     else:
         st.error(f"LPファイルが見つかりません。パス: {lp_path}")
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# ⚖️ 法的ドキュメントの表示
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+elif page in ["terms", "privacy", "legal_notice"]:
+    file_map = {
+        "terms": "index.html",
+        "privacy": "index2.html",
+        "legal_notice": "index3.html"
+    }
+    legal_path = os.path.join("role", file_map[page])
+    if os.path.exists(legal_path):
+        with open(legal_path, "r", encoding="utf-8") as f:
+            legal_html = f.read()
+        components.html(legal_html, height=1000, scrolling=True)
+    else:
+        st.error(f"ドキュメントが見つかりません: {legal_path}")
         # デバッグ用：カレントディレクトリのファイル一覧を表示
         if st.checkbox("🔍 デバッグ情報を表示"):
             st.write(f"Current Directory: {os.getcwd()}")
@@ -942,10 +959,10 @@ elif page == "support" and support_user:
     # フッター (応援ページ)
     st.markdown("""
     <div class="oshi-footer animate-fade-in delay-3" style="margin-top:40px;">Powered by <a href="?page=dashboard">OshiPay</a></div>
-    <div class="legal-links animate-fade-in delay-3" style="margin-top:20px;">
-        <a href="#">利用規約</a>
-        <a href="#">プライバシーポリシー</a>
-        <a href="#">特定商取引法に基づく表記</a>
+    <div class="legal-links animate-fade-in delay-3" style="margin-top:20px; display:flex; justify-content:center; gap:15px; font-size:11px;">
+        <a href="?page=terms" target="_top" style="color:rgba(240,240,245,0.4); text-decoration:none;">利用規約</a>
+        <a href="?page=privacy" target="_top" style="color:rgba(240,240,245,0.4); text-decoration:none;">プライバシーポリシー</a>
+        <a href="?page=legal_notice" target="_top" style="color:rgba(240,240,245,0.4); text-decoration:none;">特定商取引法に基づく表記</a>
     </div>
     """, unsafe_allow_html=True)
 
