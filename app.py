@@ -148,35 +148,19 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ── ルーティング & 永続化 ──
+# ── ルーティング ──
 params = st.query_params
 page = params.get("page", "lp")
 
-# LocalStorage から ID を復元/保存する JS
-def sync_account_id_js(acct_id=None):
+# LocalStorage保存用の簡易JS
+def save_account_id_js(acct_id):
     if acct_id:
-        # IDがある場合はLocalStorageに保存
-        js = f"""
-        <script>
-        localStorage.setItem('oshipay_acct', '{acct_id}');
-        </script>
-        """
-    else:
-        # IDがない場合はLocalStorageから取得してURLに反映（リロード）
-        js = """
-        <script>
-        const savedAcct = localStorage.getItem('oshipay_acct');
-        const urlParams = new URLSearchParams(window.location.search);
-        if (savedAcct && !urlParams.has('acct') && urlParams.get('page') === 'dashboard') {
-            urlParams.set('acct', savedAcct);
-            window.location.search = urlParams.toString();
-        }
-        </script>
-        """
-    st.components.v1.html(js, height=0)
+        st.components.v1.html(f"""
+        <script>localStorage.setItem('oshipay_acct', '{acct_id}');</script>
+        """, height=0)
 
 if page == "dashboard":
-    sync_account_id_js(params.get("acct"))
+    save_account_id_js(params.get("acct"))
 
 # 法務ページ用の幅調整
 IS_LEGAL_PAGE = page in ["terms", "privacy", "legal"]
@@ -312,14 +296,42 @@ if page == "support" and support_user:
 else: # Dashboard
     st.markdown('<div class="oshi-logo"><span class="icon">🔥</span> <span class="text">OshiPay</span></div>', unsafe_allow_html=True)
     st.markdown('<div class="section-title">QRコードを発行</div>', unsafe_allow_html=True)
-    acct_id = connect_acct or st.session_state.get("acct_id", "")
+    # アカウントIDの特定
+    acct_id = connect_acct or params.get("acct")
+    
+    # Stripeからの戻り(code)がある場合の処理
+    if not acct_id and "code" in params:
+        try:
+            # codeをアカウントIDに交換 (OAuth)
+            response = stripe.OAuth.token(grant_type="authorization_code", code=params["code"])
+            acct_id = response["stripe_user_id"]
+            # 重要: URLからcodeを消してacctをセットしてリロード（二重発行防止）
+            st.query_params.clear()
+            st.query_params.update({"page": "dashboard", "acct": acct_id})
+            st.rerun()
+        except Exception as e:
+            st.error(f"連携エラー: {e}")
+            if st.button("やり直す"):
+                st.query_params.clear()
+                st.query_params.update({"page": "dashboard"})
+                st.rerun()
+            st.stop()
+
     if not acct_id:
-        if st.button("🔗 Stripeアカウントを連携する"):
-            try:
-                acct_id = create_connect_account(); st.session_state.acct_id = acct_id
-                url = create_account_link(acct_id)
-                st.markdown(f'<script>window.top.location.href = "{url}";</script>', unsafe_allow_html=True)
-            except Exception as e: st.error(e)
+        st.markdown('<div class="header">応援用QRコードを作成</div>', unsafe_allow_html=True)
+        st.write("応援（決済）を受け取るためのStripeアカウントを作成、または連携します。")
+        
+        # 明示的なボタンによる発行の意思確認
+        if st.checkbox("新規にQRコードを発行して応援を受け取りますか？"):
+            url = f"https://connect.stripe.com/express/oauth/authorize?client_id={st.secrets['STRIPE_CLIENT_ID']}&state={uuid.uuid4()}&suggested_capabilities[]=transfers"
+            st.markdown(f'''
+                <a href="{url}" target="_top" class="stripe-connect">
+                    <span>Stripeで連携する</span>
+                </a>
+            ''', unsafe_allow_html=True)
+            st.info("※上のボタンを押すとStripeの登録画面に移動します。")
+        else:
+            st.warning("発行・連携を進めるには上のチェックボックスをオンにしてください。")
     else:
         st.markdown(f"""
         <div style="background: rgba(139,92,246,0.1); border: 1px solid rgba(139,92,246,0.2); border-radius: 12px; padding: 16px; margin-bottom: 20px;">
