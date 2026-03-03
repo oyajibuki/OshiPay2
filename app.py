@@ -75,7 +75,11 @@ def create_connect_account():
         type="express", country="JP",
         capabilities={"card_payments": {"requested": True}, "transfers": {"requested": True}},
         business_type="individual",
-        business_profile={"mcc": "7922", "product_description": "OshiPay - 投げ銭サービス"},
+        business_profile={
+            "mcc": "7922", 
+            "product_description": "OshiPay - 投げ銭サービス",
+            "url": BASE_URL
+        },
     )
     return account.id
 
@@ -299,37 +303,21 @@ else: # Dashboard
     # アカウントIDの特定
     acct_id = connect_acct or params.get("acct")
     
-    # Stripeからの戻り(code)がある場合の処理
-    if not acct_id and "code" in params:
-        try:
-            # codeをアカウントIDに交換 (OAuth)
-            response = stripe.OAuth.token(grant_type="authorization_code", code=params["code"])
-            acct_id = response["stripe_user_id"]
-            # 重要: URLからcodeを消してacctをセットしてリロード（二重発行防止）
-            st.query_params.clear()
-            st.query_params.update({"page": "dashboard", "acct": acct_id})
-            st.rerun()
-        except Exception as e:
-            st.error(f"連携エラー: {e}")
-            if st.button("やり直す"):
-                st.query_params.clear()
-                st.query_params.update({"page": "dashboard"})
-                st.rerun()
-            st.stop()
-
     if not acct_id:
         st.markdown('<div class="header">応援用QRコードを作成</div>', unsafe_allow_html=True)
         st.write("応援（決済）を受け取るためのStripeアカウントを作成、または連携します。")
         
         # 明示的なボタンによる発行の意思確認
         if st.checkbox("新規にQRコードを発行して応援を受け取りますか？"):
-            url = f"https://connect.stripe.com/express/oauth/authorize?client_id={st.secrets['STRIPE_CLIENT_ID']}&state={uuid.uuid4()}&suggested_capabilities[]=transfers"
-            st.markdown(f'''
-                <a href="{url}" target="_top" class="stripe-connect">
-                    <span>Stripeで連携する</span>
-                </a>
-            ''', unsafe_allow_html=True)
-            st.info("※上のボタンを押すとStripeの登録画面に移動します。")
+            if st.button("🔗 Stripeアカウントを連携する"):
+                try:
+                    # アカウント作成（ウェブサイトURLなどを事前注入）
+                    acct_id = create_connect_account()
+                    # 登録用リンクを取得して遷移
+                    url = create_account_link(acct_id)
+                    st.markdown(f'<script>window.top.location.href = "{url}";</script>', unsafe_allow_html=True)
+                except Exception as e:
+                    st.error(f"連携エラー: {e}")
         else:
             st.warning("発行・連携を進めるには上のチェックボックスをオンにしてください。")
     else:
