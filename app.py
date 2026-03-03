@@ -193,8 +193,18 @@ if page in LEGAL_MAP:
 # ── ランディングページ ──
 if page == "lp":
     lp_html = read_html_file("oshipay-lp/index.html")
-    st.markdown("<style>iframe { height: 3800px !important; border: none; }</style>", unsafe_allow_html=True)
-    components.html(lp_html, height=3800)
+    st.markdown("""
+    <style>
+    /* デフォルト (PC) の高さ */
+    iframe { height: 3850px !important; border: none; }
+
+    /* モバイル用の高さ調整 (幅768px以下) */
+    @media (max-width: 768px) {
+        iframe { height: 5800px !important; }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    components.html(lp_html, height=5800)
     st.stop()
 
 # ── 成功ページ ──
