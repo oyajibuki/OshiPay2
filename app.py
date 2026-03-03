@@ -313,11 +313,16 @@ else: # Dashboard
                 try:
                     # アカウント作成（ウェブサイトURLなどを事前注入）
                     acct_id = create_connect_account()
-                    # 登録用リンクを取得して遷移
-                    url = create_account_link(acct_id)
-                    st.markdown(f'<script>window.top.location.href = "{url}";</script>', unsafe_allow_html=True)
+                    # 登録用リンクを取得して保存
+                    st.session_state.onboarding_url = create_account_link(acct_id)
                 except Exception as e:
                     st.error(f"連携エラー: {e}")
+
+            if "onboarding_url" in st.session_state:
+                st.success("連携の準備ができました！以下のボタンからStripeの登録を完了させてください。")
+                st.link_button("👉 Stripeの登録画面ページへ進む", st.session_state.onboarding_url)
+                # 自動遷移も試みる（環境によってブロックされる可能性があるため、ボタンと併用）
+                components.html(f'<script>window.top.location.href = "{st.session_state.onboarding_url}";</script>', height=0)
         else:
             st.warning("発行・連携を進めるには上のチェックボックスをオンにしてください。")
     else:
