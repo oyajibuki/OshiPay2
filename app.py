@@ -188,6 +188,25 @@ if page == "success":
     st.markdown('<div class="oshi-logo"><span class="icon">🔥</span> <span class="text">OshiPay</span></div>', unsafe_allow_html=True)
     st.markdown('<div style="text-align:center;font-size:80px;margin-bottom:20px;">🎉</div><div class="section-title">応援完了！</div>', unsafe_allow_html=True)
     st.markdown('<div class="section-subtitle">ありがとうございます！🙏</div>', unsafe_allow_html=True)
+    # ── 応援メール送信 ──
+    s_name = params.get("s_name", "")
+    s_amt_str = params.get("s_amt", "0")
+    s_acct = params.get("s_acct", "")
+    s_msg = params.get("s_msg", "")
+    try:
+        s_amt = int(s_amt_str)
+    except ValueError:
+        s_amt = 0
+    if s_acct and s_name and s_amt > 0:
+        try:
+            acct_info = stripe.Account.retrieve(s_acct)
+            creator_email = acct_info.get("email", "")
+            if creator_email:
+                ok, err = send_support_email(creator_email, s_name, s_amt, s_msg)
+                if not ok:
+                    st.warning(f"通知メールの送信に失敗しました: {err}")
+        except Exception as mail_err:
+            st.warning(f"メール送信処理でエラーが発生しました: {mail_err}")
     share_text = f"応援したよ！\n{BASE_URL} #OshiPay"
     st.link_button("𝕏 でシェア", f"https://twitter.com/intent/tweet?text={urllib.parse.quote(share_text)}", use_container_width=True)
     st.markdown(f'<div class="oshi-footer">Powered by <a href="{BASE_URL}?page=dashboard">OshiPay</a></div>', unsafe_allow_html=True)
@@ -238,7 +257,7 @@ if page == "support" and support_user:
             checkout_params = {
                 "payment_method_types": ["card"], "mode": "payment",
                 "line_items": [{"price_data": {"currency": "jpy", "product_data": {"name": f"{support_name}への応援"}, "unit_amount": amt}, "quantity": 1}],
-                "success_url": f"{BASE_URL}?page=success&s_name={urllib.parse.quote(support_name)}&s_amt={amt}", "cancel_url": f"{BASE_URL}?page=cancel",
+                "success_url": f"{BASE_URL}?page=success&s_name={urllib.parse.quote(support_name)}&s_amt={amt}&s_acct={connect_acct}&s_msg={urllib.parse.quote(msg or '')}", "cancel_url": f"{BASE_URL}?page=cancel",
                 "metadata": {"user_id": support_user, "message": msg}
             }
             if connect_acct:
