@@ -250,7 +250,7 @@ footer {visibility: hidden;}
     letter-spacing: 1px;
 }
 
-/* ── グラスカード (装飾用、Streamlit widgetは包めないので背景として使用) ── */
+/* ── グらすカード (装飾用、Streamlit widgetは包めないので背景として使用) ── */
 .glass-card {
     background: rgba(255,255,255,0.04);
     backdrop-filter: blur(20px);
@@ -1103,4 +1103,11 @@ else:
                     st.code(res['url'], language=None)
                     st.toast("URLをコピーできる状態にしました！")
 
-    st.markdown('<div class="oshi-footer animate-fade-in delay-3">Powered by <a href="#">OshiPay</a></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="oshi-footer animate-fade-in delay-3">Powered by <a href="{BASE_URL}?page=dashboard">OshiPay</a></div>', unsafe_allow_html=True)
+    st.markdown(f"""
+    <div class="legal-links animate-fade-in delay-3" style="text-align:center; margin-top:10px;">
+        <a href="{BASE_URL}?page=terms" style="font-size:10px; color:rgba(240,240,245,0.3); text-decoration:none; margin:0 5px;">利用規約</a>
+        <a href="{BASE_URL}?page=privacy" style="font-size:10px; color:rgba(240,240,245,0.3); text-decoration:none; margin:0 5px;">プライバシーポリシー</a>
+        <a href="{BASE_URL}?page=legal" style="font-size:10px; color:rgba(240,240,245,0.3); text-decoration:none; margin:0 5px;">特定商取引法に基づく表記</a>
+    </div>
+    """, unsafe_allow_html=True)
