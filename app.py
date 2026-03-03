@@ -189,18 +189,11 @@ if page == "success":
     st.markdown('<div style="text-align:center;font-size:80px;margin-bottom:20px;">🎉</div><div class="section-title">応援完了！</div>', unsafe_allow_html=True)
     st.markdown('<div class="section-subtitle">ありがとうございます！🙏</div>', unsafe_allow_html=True)
     
-    # ── デバッグ情報（原因特定のため一時的に表示） ──
     s_name = params.get("s_name", "")
     s_amt_str = params.get("s_amt", "0")
     s_acct = params.get("s_acct", "")
     s_msg = params.get("s_msg", "")
     
-    with st.expander("🛠️ デバッグ情報 (メールが届かない場合、ここを確認してください)"):
-        st.write(f"- 送信元名: {s_name}")
-        st.write(f"- 金額: {s_amt_str}")
-        st.write(f"- クリエイターID: {s_acct}")
-        st.write(f"- メッセージ: {s_msg}")
-
     # ── 応援メール送信 ──
     try:
         s_amt = int(s_amt_str)
@@ -213,17 +206,14 @@ if page == "success":
             acct_info = stripe.Account.retrieve(s_acct)
             creator_email = acct_info.get("email", "")
             
-            if not creator_email:
-                st.info(f"💡 クリエイター({s_acct})のメールアドレスがStripeから取得できませんでした。クリエイター側でStripeの設定が完了している必要があります。")
-            
             if creator_email:
                 ok, err = send_support_email(creator_email, s_name, s_amt, s_msg)
                 if not ok:
-                    st.error(f"⚠️ 通知メールの送信に失敗しました。Secretsの設定（SMTP_PASSなど）を確認してください。\nエラー内容: {err}")
+                    st.error(f"⚠️ 通知メールの送信に失敗しました。\nエラー内容: {err}")
                 else:
                     st.success("✅ クリエイターへ応援通知メールを送信しました！")
         except Exception as mail_err:
-            st.error(f"❌ メール送信処理中に予期せぬエラーが発生しました: {mail_err}")
+            st.error(f"❌ メール送信処理中にエラーが発生しました")
     share_text = f"応援したよ！\n{BASE_URL} #OshiPay"
     st.link_button("𝕏 でシェア", f"https://twitter.com/intent/tweet?text={urllib.parse.quote(share_text)}", use_container_width=True)
     st.markdown(f'<div class="oshi-footer">Powered by <a href="{BASE_URL}?page=dashboard">OshiPay</a></div>', unsafe_allow_html=True)
@@ -246,7 +236,7 @@ if page == "support" and support_user:
     st.markdown('<div class="oshi-logo"><span class="icon">🔥</span> <span class="text">OshiPay</span></div>', unsafe_allow_html=True)
     st.markdown(f'<div class="support-avatar">{support_icon}</div>', unsafe_allow_html=True)
     st.markdown(f'<div class="support-name">{support_name or "Creator"}</div><div class="support-label">を応援しよう</div>', unsafe_allow_html=True)
-    if "amt" not in st.session_state: st.session_state.amt = 1000
+    if "amt" not in st.session_state: st.session_state.amt = 0
     
     # プリセットボタン
     for i in range(0, len(PRESET_AMOUNTS), 3):
@@ -261,14 +251,20 @@ if page == "support" and support_user:
     st.markdown('<div class="oshi-divider"></div>', unsafe_allow_html=True)
     
     # 任意の金額入力
-    custom_amt = st.number_input("任意の金額を入力 (円)", min_value=100, step=100, value=int(st.session_state.amt), key="custom_amt_input")
+    custom_amt = st.number_input("任意の金額を入力 (100円以上)", min_value=0, step=100, value=int(st.session_state.amt), key="custom_amt_input")
     if custom_amt != st.session_state.amt:
         st.session_state.amt = custom_amt
         st.rerun()
     
     st.markdown(f'<div class="selected-amount-display">¥{int(st.session_state.amt):,}</div>', unsafe_allow_html=True)
     msg = st.text_area("応援メッセージ（オプション）", max_chars=140)
-    if st.button("🔥 応援する！"):
+    
+    # ボタンの無効化処理を追加
+    is_disabled = st.session_state.amt < 100
+    if is_disabled:
+        st.info("💡 応援は100円から受け付けています。金額を選択してください。")
+
+    if st.button("🔥 応援する！", disabled=is_disabled):
         amt = st.session_state.amt
         try:
             checkout_params = {
