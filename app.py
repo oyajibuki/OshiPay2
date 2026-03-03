@@ -658,6 +658,21 @@ else:
     </style>
     """, unsafe_allow_html=True)
 
+# ── 法務ページルーティング ──
+if page in ["terms", "privacy", "legal"]:
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    file_map = {
+        "terms": os.path.join(current_dir, "role", "index.html"),
+        "privacy": os.path.join(current_dir, "role", "index2.html"),
+        "legal": os.path.join(current_dir, "role", "index3.html"),
+    }
+    target_file = file_map.get(page)
+    if os.path.exists(target_file):
+        with open(target_file, "r", encoding="utf-8") as f:
+            html_content = f.read()
+        components.html(html_content, height=1200, scrolling=True)
+        st.stop()
+
 # 特定のパラメータがある場合はそれぞれのページへ誘導
 if not params.get("page"):
     if params.get("user") or params.get("acct"):
@@ -754,12 +769,12 @@ if page == "success":
     encoded_text = urllib.parse.quote(share_text)
     st.link_button("𝕏 でシェア", f"https://twitter.com/intent/tweet?text={encoded_text}", use_container_width=True)
 
-    st.markdown("""
-    <div class="oshi-footer animate-fade-in delay-3">Powered by <a href="?page=dashboard">OshiPay</a></div>
+    st.markdown(f"""
+    <div class="oshi-footer animate-fade-in delay-3">Powered by <a href="{BASE_URL}?page=dashboard">OshiPay</a></div>
     <div class="legal-links animate-fade-in delay-3" style="margin-top:20px;">
-        <a href="#">利用規約</a>
-        <a href="#">プライバシーポリシー</a>
-        <a href="#">特定商取引法に基づく表記</a>
+        <a href="{BASE_URL}?page=terms">利用規約</a>
+        <a href="{BASE_URL}?page=privacy">プライバシーポリシー</a>
+        <a href="{BASE_URL}?page=legal">特定商取引法に基づく表記</a>
     </div>
     """, unsafe_allow_html=True)
 
