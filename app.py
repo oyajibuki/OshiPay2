@@ -264,12 +264,30 @@ if page == "support" and support_user:
     
     st.markdown('<div class="oshi-divider"></div>', unsafe_allow_html=True)
     
-    # 任意の金額入力
-    custom_amt = st.number_input("任意の金額を入力 (100円以上)", min_value=0, step=100, value=int(st.session_state.amt), key="custom_amt_input")
-    if custom_amt != st.session_state.amt:
-        st.session_state.amt = custom_amt
+    # 金額の選択肢（ドラム用）: 非線形で作成して操作性を向上
+    # 100-1000(100刻み), 1000-10000(500刻み), 10000-100000(5000刻み), 100000-1000000(50000刻み)
+    slider_options = (
+        list(range(100, 1000, 100)) + 
+        list(range(1000, 10000, 500)) + 
+        list(range(10000, 100000, 5000)) + 
+        list(range(100000, 1000001, 50000))
+    )
+    # 現在のamtがoptionsにない場合は一番近い値を探す
+    current_amt = int(st.session_state.amt)
+    if current_amt not in slider_options:
+        current_amt = min(slider_options, key=lambda x: abs(x - current_amt))
+
+    # ドラム型スライダー
+    selected_amt = st.select_slider(
+        "応援金額を選択 (ドラムロール)",
+        options=slider_options,
+        value=current_amt,
+        key="amt_slider"
+    )
+    if selected_amt != st.session_state.amt:
+        st.session_state.amt = selected_amt
         st.rerun()
-    
+
     st.markdown(f'<div class="selected-amount-display">¥{int(st.session_state.amt):,}</div>', unsafe_allow_html=True)
     msg = st.text_area("応援メッセージ（オプション）", max_chars=140)
     
