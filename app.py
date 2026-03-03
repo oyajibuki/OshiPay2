@@ -309,20 +309,35 @@ else: # Dashboard
         
         # 明示的なボタンによる発行の意思確認
         if st.checkbox("新規にQRコードを発行して応援を受け取りますか？"):
-            if st.button("🔗 Stripeアカウントを連携する"):
-                try:
-                    # アカウント作成（ウェブサイトURLなどを事前注入）
-                    acct_id = create_connect_account()
-                    # 登録用リンクを取得して保存
-                    st.session_state.onboarding_url = create_account_link(acct_id)
-                except Exception as e:
-                    st.error(f"連携エラー: {e}")
-
+            if "onboarding_url" not in st.session_state:
+                if st.button("🔗 Stripeアカウントを連携する"):
+                    with st.spinner("Stripeと連携する準備をしています... (数秒かかります)"):
+                        try:
+                            # アカウント作成（ウェブサイトURLなどを事前注入）
+                            acct_id = create_connect_account()
+                            # 登録用リンクを取得して保存
+                            st.session_state.onboarding_url = create_account_link(acct_id)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"連携エラー: {e}")
+            
             if "onboarding_url" in st.session_state:
-                st.success("連携の準備ができました！以下のボタンからStripeの登録を完了させてください。")
-                st.link_button("👉 Stripeの登録画面ページへ進む", st.session_state.onboarding_url)
-                # 自動遷移も試みる（環境によってブロックされる可能性があるため、ボタンと併用）
+                st.markdown(f"""
+                <div style="background: rgba(139,92,246,0.1); border: 1px solid rgba(139,92,246,0.2); border-radius: 12px; padding: 20px; text-align: center;">
+                    <div style="font-size: 24px; margin-bottom: 12px;">🌟</div>
+                    <div style="color: #f0f0f5; font-weight: 700; font-size: 16px; margin-bottom: 8px;">ステップ 1/2: Stripeで本人確認</div>
+                    <div style="font-size: 13px; color: rgba(240,240,245,0.7); margin-bottom: 20px;">
+                        下のボタンを押して、Stripeの画面で「本人確認」と「銀行口座」の設定を完了させてください。<br>
+                        完了すると自動的にここに戻ってきます。
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                st.link_button("👉 Stripeの登録画面へ進む", st.session_state.onboarding_url, type="primary")
+                # 念のための自動リダイレクトJSも併用
                 components.html(f'<script>window.top.location.href = "{st.session_state.onboarding_url}";</script>', height=0)
+                if st.button("❌ キャンセルしてやり直す"):
+                    del st.session_state.onboarding_url
+                    st.rerun()
         else:
             st.warning("発行・連携を進めるには上のチェックボックスをオンにしてください。")
     else:
