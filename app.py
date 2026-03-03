@@ -659,18 +659,22 @@ else:
     """, unsafe_allow_html=True)
 
 # ── 法務ページルーティング ──
-if page in ["terms", "privacy", "legal"]:
+if page in ["terms", "privacy", "legal", "legal_notice"]:
     current_dir = os.path.dirname(os.path.abspath(__file__))
     file_map = {
         "terms": os.path.join(current_dir, "role", "index.html"),
         "privacy": os.path.join(current_dir, "role", "index2.html"),
         "legal": os.path.join(current_dir, "role", "index3.html"),
+        "legal_notice": os.path.join(current_dir, "role", "index3.html"),
     }
     target_file = file_map.get(page)
     if os.path.exists(target_file):
         with open(target_file, "r", encoding="utf-8") as f:
             html_content = f.read()
-        components.html(html_content, height=1200, scrolling=True)
+        components.html(html_content, height=1500, scrolling=True)
+        st.stop()
+    else:
+        st.error(f"ドキュメントが見つかりません: {target_file}")
         st.stop()
 
 # 特定のパラメータがある場合はそれぞれのページへ誘導
@@ -836,27 +840,7 @@ elif page == "lp":
         st.error(f"LPファイルが見つかりません。パス: {lp_path}")
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# ⚖️ 法的ドキュメントの表示
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-elif page in ["terms", "privacy", "legal_notice"]:
-    file_map = {
-        "terms": "index.html",
-        "privacy": "index2.html",
-        "legal_notice": "index3.html"
-    }
-    legal_path = os.path.join("role", file_map[page])
-    if os.path.exists(legal_path):
-        with open(legal_path, "r", encoding="utf-8") as f:
-            legal_html = f.read()
-        components.html(legal_html, height=1000, scrolling=True)
-    else:
-        st.error(f"ドキュメントが見つかりません: {legal_path}")
-        # デバッグ用：カレントディレクトリのファイル一覧を表示
-        if st.checkbox("🔍 デバッグ情報を表示"):
-            st.write(f"Current Directory: {os.getcwd()}")
-            st.write(f"Files in current directory: {os.listdir('.')}")
-            if os.path.exists("oshipay-lp"):
-                st.write(f"Files in oshipay-lp: {os.listdir('oshipay-lp')}")
+    pass # Routing handled above
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
