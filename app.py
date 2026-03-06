@@ -3,6 +3,7 @@ import io
 import base64
 import uuid
 import random
+import datetime
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -124,6 +125,68 @@ def generate_qr_data(data: str) -> tuple[str, bytes]:
     return b64, qr_bytes
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Supabase 永続化
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+from supabase import create_client, Client
+
+REPLY_EMOJIS = ["👍", "❤️", "🙏", "🎉", "😊", "🔥", "✨", "🌟"]
+
+@st.cache_resource
+def get_db() -> Client:
+    """Supabaseクライアントをシングルトンで返す"""
+    return create_client(
+        st.secrets["SUPABASE_URL"],
+        st.secrets["SUPABASE_KEY"],
+    )
+
+def add_support(support_id: str, creator_acct: str, creator_name: str, amount: int, message: str) -> None:
+    """応援記録を追加（support_idのUNIQUE制約で重複は自動無視）"""
+    try:
+        get_db().table("supports").insert({
+            "support_id": support_id,
+            "creator_acct": creator_acct,
+            "creator_name": creator_name,
+            "amount": amount,
+            "message": message,
+        }).execute()
+    except Exception:
+        pass  # unique制約違反（ページリロード時の重複）は無視
+
+def get_support(support_id: str) -> dict | None:
+    """support_id で1件取得"""
+    resp = get_db().table("supports").select("*").eq("support_id", support_id).execute()
+    return resp.data[0] if resp.data else None
+
+def set_reply(support_id: str, emoji: str, text: str) -> bool:
+    """クリエイターの返信を保存"""
+    resp = get_db().table("supports").update({
+        "reply_emoji": emoji,
+        "reply_text": text,
+        "replied_at": datetime.datetime.utcnow().isoformat(),
+    }).eq("support_id", support_id).execute()
+    return bool(resp.data)
+
+def get_supports_for_creator(creator_acct: str) -> list:
+    """クリエイターの応援一覧を新着順で返す"""
+    resp = (
+        get_db().table("supports")
+        .select("*")
+        .eq("creator_acct", creator_acct)
+        .order("created_at", desc=True)
+        .execute()
+    )
+    return resp.data or []
+
+def load_supports() -> list:
+    """テストページ用: 全件取得（新着順）"""
+    resp = get_db().table("supports").select("*").order("created_at", desc=True).execute()
+    return resp.data or []
+
+def delete_all_supports() -> None:
+    """テストページ用: 全データ削除"""
+    get_db().table("supports").delete().neq("support_id", "").execute()
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # スタイル & UIパーツ
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 st.markdown("""
@@ -173,6 +236,8 @@ if page == "lp":
     st.markdown("<style>.stMainBlockContainer, .block-container { max-width: none !important; padding: 0 !important; margin: 0 !important; }</style>", unsafe_allow_html=True)
 elif IS_LEGAL_PAGE:
     st.markdown("<style>.stMainBlockContainer, .block-container { max-width: 800px !important; margin: 0 auto; }</style>", unsafe_allow_html=True)
+elif page == "reply_view":
+    st.markdown("<style>.stMainBlockContainer, .block-container { max-width: 700px !important; margin: 0 auto; }</style>", unsafe_allow_html=True)
 else:
     st.markdown("<style>.stMainBlockContainer, .block-container { max-width: 460px !important; margin: 0 auto; }</style>", unsafe_allow_html=True)
 
@@ -212,42 +277,302 @@ if page == "success":
     st.markdown('<div class="oshi-logo"><span class="icon">🔥</span> <span class="text">OshiPay</span></div>', unsafe_allow_html=True)
     st.markdown('<div style="text-align:center;font-size:80px;margin-bottom:20px;">🎉</div><div class="section-title">応援完了！</div>', unsafe_allow_html=True)
     st.markdown('<div class="section-subtitle">ありがとうございます！🙏</div>', unsafe_allow_html=True)
-    
+
     s_name = params.get("s_name", "")
     s_amt_str = params.get("s_amt", "0")
     s_acct = params.get("s_acct", "")
     s_msg = params.get("s_msg", "")
-    
-    # ── 応援メール送信 ──
+    s_sid = params.get("s_sid", "")
+
+    # ── 応援金額のパース ──
     try:
         s_amt = int(s_amt_str)
     except ValueError:
         s_amt = 0
-    
+
+    # ── 応援記録を JSON に保存（冪等: s_sid があれば1回のみ） ──
+    if s_sid and s_acct and s_amt > 0:
+        add_support(s_sid, s_acct, s_name, s_amt, s_msg)
+
+    # ── 応援証明カード ──
+    if s_sid:
+        my_support_url = f"{BASE_URL}?page=my_support&sid={s_sid}"
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, rgba(139,92,246,0.15), rgba(236,72,153,0.1));
+                    border: 1px solid rgba(139,92,246,0.35); border-radius: 16px;
+                    padding: 20px; margin: 20px 0; text-align: center;">
+            <div style="font-size: 28px; margin-bottom: 8px;">🏅</div>
+            <div style="color: #f0f0f5; font-weight: 700; font-size: 15px; margin-bottom: 6px;">応援証明をブックマークしよう</div>
+            <div style="font-size: 12px; color: rgba(240,240,245,0.65); margin-bottom: 14px;">
+                クリエイターからの返信もここで確認できます
+            </div>
+            <a href="{my_support_url}" target="_top"
+               style="display:inline-block; background: linear-gradient(135deg,#8b5cf6,#ec4899);
+                      color:white; text-decoration:none; border-radius:9999px;
+                      padding:10px 24px; font-weight:700; font-size:14px;">
+                🎫 応援証明を見る
+            </a>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ── 応援メール送信 ──
     if s_acct and s_name and s_amt > 0:
         try:
-            # クリエイターのメールアドレスを取得
             acct_info = stripe.Account.retrieve(s_acct)
             creator_email = acct_info.get("email", "")
-            
             if creator_email:
                 ok, err = send_support_email(creator_email, s_name, s_amt, s_msg)
                 if not ok:
                     st.error(f"⚠️ 通知メールの送信に失敗しました。\nエラー内容: {err}")
-                else:
-                    st.success("✅ クリエイターへ応援通知メールを送信しました！")
-        except Exception as mail_err:
-            st.error(f"❌ メール送信処理中にエラーが発生しました")
-    share_text = f"応援したよ！\n{BASE_URL} #OshiPay"
+        except Exception:
+            pass  # メール失敗はサイレントに
+
+    share_text = f"{s_name}さんを応援したよ！\n{BASE_URL} #OshiPay"
     st.link_button("𝕏 でシェア", f"https://twitter.com/intent/tweet?text={urllib.parse.quote(share_text)}", use_container_width=True)
     st.markdown(f'<div class="oshi-footer">Powered by <a href="{BASE_URL}?page=dashboard">OshiPay</a></div>', unsafe_allow_html=True)
     st.markdown(f'<div class="legal-links text-center pt-2"><a href="{BASE_URL}?page=terms" target="_top">利用規約</a><a href="{BASE_URL}?page=privacy" target="_top">プライバシーポリシー</a><a href="{BASE_URL}?page=legal" target="_top">特定商取引法</a></div>', unsafe_allow_html=True)
     st.stop()
 
+# ── 応援証明ページ（サポーター向け）──
+if page == "my_support":
+    s_sid = params.get("sid", "")
+    st.markdown('<div class="oshi-logo"><span class="icon">🔥</span> <span class="text">OshiPay</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">🏅 応援証明</div>', unsafe_allow_html=True)
+
+    if not s_sid:
+        st.error("応援IDが見つかりません。")
+        st.stop()
+
+    record = get_support(s_sid)
+    if not record:
+        st.warning("応援記録が見つかりません。決済直後の場合は数秒後に再読み込みしてください。")
+        st.stop()
+
+    # ── 応援内容カード ──
+    amt_disp = f"¥{record['amount']:,}"
+    created_disp = record["created_at"][:10]
+    msg_disp = record["message"] if record["message"] else "（メッセージなし）"
+
+    st.markdown(f"""
+    <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+                border-radius: 16px; padding: 24px; margin-bottom: 20px;">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+            <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#8b5cf6,#ec4899,#f97316);
+                        display:flex;align-items:center;justify-content:center;font-size:22px;">🔥</div>
+            <div>
+                <div style="color:#f0f0f5;font-weight:700;font-size:17px;">{record['creator_name']}</div>
+                <div style="color:rgba(240,240,245,0.5);font-size:12px;">{created_disp} に応援</div>
+            </div>
+            <div style="margin-left:auto;font-size:28px;font-weight:900;
+                        background:linear-gradient(135deg,#8b5cf6,#ec4899,#f97316);
+                        -webkit-background-clip:text;-webkit-text-fill-color:transparent;">
+                {amt_disp}
+            </div>
+        </div>
+        <div style="background:rgba(255,255,255,0.03);border-radius:10px;padding:12px;
+                    font-size:13px;color:rgba(240,240,245,0.8);line-height:1.6;">
+            💬 {msg_disp}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── クリエイターからの返信 ──
+    st.markdown('<div style="font-size:15px;font-weight:700;color:#f0f0f5;margin-bottom:12px;">📩 クリエイターからの返信</div>', unsafe_allow_html=True)
+
+    if record["reply_emoji"] or record["reply_text"]:
+        replied_disp = record["replied_at"][:10] if record.get("replied_at") else ""
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, rgba(139,92,246,0.15), rgba(236,72,153,0.1));
+                    border: 1px solid rgba(139,92,246,0.3); border-radius: 16px; padding: 20px; margin-bottom:16px;">
+            <div style="font-size:36px; text-align:center; margin-bottom:10px;">{record['reply_emoji'] or ''}</div>
+            <div style="font-size:14px; color:#f0f0f5; text-align:center; line-height:1.7;">
+                {record['reply_text'] or ''}
+            </div>
+            <div style="font-size:11px; color:rgba(240,240,245,0.4); text-align:right; margin-top:10px;">
+                {replied_disp}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <div style="background:rgba(255,255,255,0.03);border:1px dashed rgba(255,255,255,0.12);
+                    border-radius:12px;padding:20px;text-align:center;color:rgba(240,240,245,0.45);font-size:13px;">
+            まだ返信がありません。クリエイターからの返信をお待ちください 🕐
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown(f'<div class="oshi-footer" style="margin-top:28px;">Powered by <a href="{BASE_URL}?page=dashboard">OshiPay</a></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="legal-links text-center pt-2"><a href="{BASE_URL}?page=terms" target="_top">利用規約</a><a href="{BASE_URL}?page=privacy" target="_top">プライバシーポリシー</a><a href="{BASE_URL}?page=legal" target="_top">特定商取引法</a></div>', unsafe_allow_html=True)
+    st.stop()
+
+# ── 返信ダッシュボードページ（クリエイター向け）──
+if page == "reply_view":
+    rv_acct = params.get("acct", "")
+    st.markdown('<div class="oshi-logo"><span class="icon">🔥</span> <span class="text">OshiPay</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">💌 返信ダッシュボード</div>', unsafe_allow_html=True)
+
+    if not rv_acct:
+        st.error("アカウントIDが指定されていません。ダッシュボードから開いてください。")
+        st.stop()
+
+    supports = get_supports_for_creator(rv_acct)
+
+    if not supports:
+        st.markdown("""
+        <div style="background:rgba(255,255,255,0.03);border:1px dashed rgba(255,255,255,0.12);
+                    border-radius:12px;padding:32px;text-align:center;margin-top:20px;">
+            <div style="font-size:48px;margin-bottom:12px;">📭</div>
+            <div style="color:rgba(240,240,245,0.5);font-size:14px;">まだ応援が届いていません</div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.stop()
+
+    # 未返信 / 返信済み カウント
+    unreplied = [s for s in supports if not s["reply_emoji"] and not s["reply_text"]]
+    replied = [s for s in supports if s["reply_emoji"] or s["reply_text"]]
+    col_a, col_b, col_c = st.columns(3)
+    col_a.metric("応援総数", f"{len(supports)}件")
+    col_b.metric("未返信", f"{len(unreplied)}件")
+    col_c.metric("返信済", f"{len(replied)}件")
+
+    st.markdown('<div class="oshi-divider"></div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="font-size:14px;color:rgba(240,240,245,0.6);margin-bottom:16px;">新着 {len(supports)} 件の応援メッセージ</div>', unsafe_allow_html=True)
+
+    for idx, record in enumerate(supports):
+        sid = record["support_id"]
+        amt_disp = f"¥{record['amount']:,}"
+        date_disp = record["created_at"][:10]
+        msg_disp = record["message"] if record["message"] else "（メッセージなし）"
+        has_reply = bool(record["reply_emoji"] or record["reply_text"])
+        badge_color = "#22c55e" if has_reply else "#f97316"
+        badge_text = "✅ 返信済" if has_reply else "⏳ 未返信"
+
+        st.markdown(f"""
+        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);
+                    border-radius:14px;padding:18px;margin-bottom:14px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                <div style="font-size:22px;font-weight:900;
+                            background:linear-gradient(135deg,#8b5cf6,#ec4899);
+                            -webkit-background-clip:text;-webkit-text-fill-color:transparent;">
+                    {amt_disp}
+                </div>
+                <span style="font-size:11px;font-weight:700;color:{badge_color};
+                             background:rgba(255,255,255,0.06);border-radius:9999px;
+                             padding:3px 10px;border:1px solid {badge_color}40;">
+                    {badge_text}
+                </span>
+            </div>
+            <div style="font-size:13px;color:rgba(240,240,245,0.75);margin-bottom:6px;">
+                💬 {msg_disp}
+            </div>
+            <div style="font-size:11px;color:rgba(240,240,245,0.4);">{date_disp}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # 返信フォーム (Streamlit ウィジェット)
+        with st.expander("📝 返信する" if not has_reply else "✏️ 返信を編集", expanded=False):
+            cols = st.columns(len(REPLY_EMOJIS))
+            selected_emoji_key = f"emoji_{sid}"
+            if selected_emoji_key not in st.session_state:
+                st.session_state[selected_emoji_key] = record.get("reply_emoji") or REPLY_EMOJIS[0]
+
+            for ci, em in enumerate(REPLY_EMOJIS):
+                if cols[ci].button(em, key=f"em_{sid}_{ci}"):
+                    st.session_state[selected_emoji_key] = em
+                    st.rerun()
+
+            chosen_emoji = st.session_state[selected_emoji_key]
+            st.markdown(f'<div style="text-align:center;font-size:36px;margin:8px 0;">{chosen_emoji}</div>', unsafe_allow_html=True)
+
+            reply_text = st.text_area(
+                "メッセージ（任意）",
+                value=record.get("reply_text") or "",
+                max_chars=200,
+                key=f"rtxt_{sid}",
+                placeholder="ありがとう！いつも応援してくれて嬉しいです 😊",
+            )
+
+            if st.button("📨 送信する", key=f"send_{sid}", type="primary"):
+                ok = set_reply(sid, chosen_emoji, reply_text)
+                if ok:
+                    st.success("返信を保存しました！")
+                    st.rerun()
+                else:
+                    st.error("保存に失敗しました。")
+
+            # 応援証明リンク
+            proof_url = f"{BASE_URL}?page=my_support&sid={sid}"
+            st.markdown(f'<div style="margin-top:8px;font-size:12px;color:rgba(240,240,245,0.4);">🔗 <a href="{proof_url}" target="_top" style="color:#8b5cf6;">応援証明ページを確認</a></div>', unsafe_allow_html=True)
+
+    st.markdown(f'<div class="oshi-footer" style="margin-top:28px;">Powered by <a href="{BASE_URL}?page=dashboard">OshiPay</a></div>', unsafe_allow_html=True)
+    st.stop()
+
 # ── キャンセル ──
-elif page == "cancel":
+if page == "cancel":
     st.markdown('<div class="oshi-logo"><span class="icon">🔥</span> <span class="text">OshiPay</span></div>', unsafe_allow_html=True)
     st.markdown('<div style="text-align:center;font-size:80px;margin-bottom:20px;">🤔</div><div class="section-title">キャンセルしました</div>', unsafe_allow_html=True)
+    st.stop()
+
+# ── テストページ（開発用）──
+if page == "test":
+    st.markdown('<div class="oshi-logo"><span class="icon">🔥</span> <span class="text">OshiPay</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">🧪 テスト用シミュレーター</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-subtitle">Stripe決済をスキップして機能を確認</div>', unsafe_allow_html=True)
+    st.warning("⚠️ このページは開発テスト専用です。本番では使わないでください。")
+
+    # ── テストデータを追加 ──
+    with st.form("test_support_form"):
+        st.markdown("#### 応援をシミュレート")
+        c1, c2 = st.columns(2)
+        t_creator = c1.text_input("クリエイター名", value="テストクリエイター")
+        t_acct = c2.text_input("アカウントID", value="acct_test_001")
+        t_amount = st.select_slider("応援金額", options=[100, 500, 1000, 3000, 5000, 10000], value=500)
+        t_msg = st.text_input("メッセージ", value="いつも応援してます！")
+        go = st.form_submit_button("🔥 テスト応援を追加する", type="primary", use_container_width=True)
+
+    if go:
+        new_sid = str(uuid.uuid4())
+        add_support(new_sid, t_acct, t_creator, t_amount, t_msg)
+        my_url = f"{BASE_URL}?page=my_support&sid={new_sid}"
+        rv_url = f"{BASE_URL}?page=reply_view&acct={t_acct}"
+        st.success(f"追加完了！ `{new_sid[:8]}...`")
+        b1, b2 = st.columns(2)
+        b1.link_button("🏅 応援証明を確認", my_url, use_container_width=True)
+        b2.link_button("💌 返信ダッシュボード", rv_url, use_container_width=True)
+
+    # ── 保存済みデータ一覧 ──
+    all_supports = load_supports()
+    st.markdown(f"#### 保存済みデータ（{len(all_supports)}件）")
+    if not all_supports:
+        st.info("まだデータがありません。上フォームから追加してください。")
+    else:
+        for s in reversed(all_supports):
+            replied = s["reply_emoji"] or s["reply_text"]
+            badge = f"✅ {s['reply_emoji']}" if replied else "⏳ 未返信"
+            my_url = f"{BASE_URL}?page=my_support&sid={s['support_id']}"
+            rv_url  = f"{BASE_URL}?page=reply_view&acct={s['creator_acct']}"
+            st.markdown(f"""
+            <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);
+                        border-radius:10px;padding:14px;margin-bottom:8px;font-size:13px;
+                        color:rgba(240,240,245,0.85);">
+                <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+                    <b style="color:#c4b5fd;">{s['creator_name']}</b>
+                    <span style="font-weight:700;color:#f97316;">¥{s['amount']:,}</span>
+                </div>
+                <div style="font-size:11px;color:rgba(240,240,245,0.45);margin-bottom:4px;">
+                    acct: {s['creator_acct']} &nbsp;|&nbsp; {s['created_at'][:10]}
+                </div>
+                <div style="margin-bottom:6px;">💬 {s['message'] or '（なし）'}</div>
+                <div style="font-size:11px;color:rgba(240,240,245,0.5);margin-bottom:8px;">{badge}</div>
+                <a href="{my_url}" target="_top" style="color:#8b5cf6;font-size:12px;margin-right:12px;">🏅 応援証明</a>
+                <a href="{rv_url}" target="_top" style="color:#8b5cf6;font-size:12px;">💌 返信DL</a>
+            </div>
+            """, unsafe_allow_html=True)
+
+        if st.button("🗑️ テストデータを全消去", type="secondary"):
+            delete_all_supports()
+            st.rerun()
+
     st.stop()
 
 # ── 応援・ダッシュボード ──
@@ -318,12 +643,14 @@ if page == "support" and support_user:
 
     if st.button("🔥 応援する！", disabled=is_disabled):
         amt = st.session_state.amt
+        support_id = str(uuid.uuid4())  # 応援証明用ユニークID
         try:
             checkout_params = {
                 "payment_method_types": ["card"], "mode": "payment",
                 "line_items": [{"price_data": {"currency": "jpy", "product_data": {"name": f"{support_name}への応援"}, "unit_amount": amt}, "quantity": 1}],
-                "success_url": f"{BASE_URL}?page=success&s_name={urllib.parse.quote(support_name)}&s_amt={amt}&s_acct={connect_acct}&s_msg={urllib.parse.quote(msg or '')}", "cancel_url": f"{BASE_URL}?page=cancel",
-                "metadata": {"user_id": support_user, "message": msg}
+                "success_url": f"{BASE_URL}?page=success&s_name={urllib.parse.quote(support_name)}&s_amt={amt}&s_acct={connect_acct}&s_msg={urllib.parse.quote(msg or '')}&s_sid={support_id}",
+                "cancel_url": f"{BASE_URL}?page=cancel",
+                "metadata": {"user_id": support_user, "message": msg, "support_id": support_id}
             }
             if connect_acct:
                 checkout_params["payment_intent_data"] = {"application_fee_amount": int(amt * 0.1)}
@@ -394,7 +721,21 @@ else: # Dashboard
         if col1.button("✨ QRコードを生成"):
             support_url = f"{BASE_URL}?page=support&user={uuid.uuid4()}&name={urllib.parse.quote(name)}&icon={icon}&acct={acct_id}"
             st.session_state.qr_url = support_url
-        
+
+        # 返信ダッシュボードへのリンク
+        reply_view_url = f"{BASE_URL}?page=reply_view&acct={acct_id}"
+        st.markdown(f"""
+        <div style="margin: 16px 0;">
+            <a href="{reply_view_url}" target="_top"
+               style="display:block; text-align:center; background:rgba(139,92,246,0.15);
+                      border:1px solid rgba(139,92,246,0.35); border-radius:12px;
+                      padding:12px 16px; color:#c4b5fd; text-decoration:none;
+                      font-weight:700; font-size:14px;">
+                💌 応援メッセージ・返信ダッシュボードを開く
+            </a>
+        </div>
+        """, unsafe_allow_html=True)
+
         # 連携解除ボタン
         if col2.button("🚫 連携解除"):
             st.components.v1.html("""
