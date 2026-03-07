@@ -796,17 +796,25 @@ else: # Dashboard
 
         # ── 既存アカウント復元フォーム ──
         st.markdown('<div class="oshi-divider"></div>', unsafe_allow_html=True)
-        st.markdown('<div style="font-size:13px;color:rgba(240,240,245,0.5);text-align:center;margin-bottom:12px;">既にアカウントをお持ちの方</div>', unsafe_allow_html=True)
-        with st.expander("🔑 アカウントIDで復元する"):
-            st.markdown('<div style="font-size:12px;color:rgba(240,240,245,0.55);margin-bottom:12px;">以前に発行したQRコードのURLに含まれる <code>acct_</code> から始まるIDを入力してください。</div>', unsafe_allow_html=True)
-            recover_input = st.text_input("アカウントID", placeholder="acct_xxxxxxxxxxxxxxxxxx", label_visibility="collapsed")
-            if st.button("✅ このアカウントで開く", use_container_width=True):
-                rid = recover_input.strip()
-                if rid.startswith("acct_") and len(rid) > 10:
-                    st.query_params["acct"] = rid
-                    st.rerun()
-                else:
-                    st.error("正しいアカウントID（acct_ から始まる文字列）を入力してください。")
+        st.markdown("""
+        <div style="background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.25);
+                    border-radius:14px;padding:16px 20px;margin-bottom:4px;">
+            <div style="font-size:13px;font-weight:700;color:rgba(240,240,245,0.85);margin-bottom:4px;">
+                🔑 既にアカウントをお持ちの方
+            </div>
+            <div style="font-size:12px;color:rgba(240,240,245,0.5);">
+                以前に発行したURLに含まれる <code>acct_</code> から始まるIDを入力してください
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        recover_input = st.text_input("アカウントID", placeholder="acct_xxxxxxxxxxxxxxxxxx", label_visibility="collapsed")
+        if st.button("✅ このアカウントで開く", use_container_width=True):
+            rid = recover_input.strip()
+            if rid.startswith("acct_") and len(rid) > 10:
+                st.query_params["acct"] = rid
+                st.rerun()
+            else:
+                st.error("正しいアカウントID（acct_ から始まる文字列）を入力してください。")
     else:
         st.markdown(f"""
         <div style="background: rgba(139,92,246,0.1); border: 1px solid rgba(139,92,246,0.2); border-radius: 12px; padding: 16px; margin-bottom: 20px;">
