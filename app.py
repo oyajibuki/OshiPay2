@@ -653,7 +653,7 @@ if page == "support" and support_user:
                 "metadata": {"user_id": support_user, "message": msg, "support_id": support_id}
             }
             if connect_acct:
-                checkout_params["payment_intent_data"] = {"application_fee_amount": int(amt * 0.064)}
+                checkout_params["payment_intent_data"] = {"application_fee_amount": int(amt * 0.1)}
                 session = stripe.checkout.Session.create(**checkout_params, stripe_account=connect_acct)
             else: session = stripe.checkout.Session.create(**checkout_params)
             st.markdown(f'<script>window.top.location.href = "{session.url}";</script>', unsafe_allow_html=True)
