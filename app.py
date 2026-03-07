@@ -290,9 +290,24 @@ if page == "success":
     except ValueError:
         s_amt = 0
 
-    # ── 応援記録を JSON に保存（冪等: s_sid があれば1回のみ） ──
+    # ── 応援記録を Supabase に保存（冪等: s_sid があれば1回のみ） ──
     if s_sid and s_acct and s_amt > 0:
         add_support(s_sid, s_acct, s_name, s_amt, s_msg)
+
+    # ── support_id を localStorage の履歴に追記 ──
+    if s_sid:
+        components.html(f"""
+        <script>
+        try {{
+            var h = JSON.parse(localStorage.getItem('oshipay_history') || '[]');
+            if (!h.includes('{s_sid}')) {{
+                h.unshift('{s_sid}');
+                if (h.length > 50) h = h.slice(0, 50);
+                localStorage.setItem('oshipay_history', JSON.stringify(h));
+            }}
+        }} catch(e) {{}}
+        </script>
+        """, height=0)
 
     # ── 応援証明カード ──
     if s_sid:
@@ -329,6 +344,7 @@ if page == "success":
 
     share_text = f"{s_name}さんを応援したよ！\n{BASE_URL} #OshiPay"
     st.link_button("𝕏 でシェア", f"https://twitter.com/intent/tweet?text={urllib.parse.quote(share_text)}", use_container_width=True)
+    st.markdown(f'<div style="text-align:center;margin-top:10px;"><a href="{BASE_URL}?page=my_history" target="_top" style="font-size:13px;color:rgba(240,240,245,0.5);">📋 応援履歴を見る</a></div>', unsafe_allow_html=True)
     st.markdown(f'<div class="oshi-footer">Powered by <a href="{BASE_URL}?page=dashboard">OshiPay</a></div>', unsafe_allow_html=True)
     st.markdown(f'<div class="legal-links text-center pt-2"><a href="{BASE_URL}?page=terms" target="_top">利用規約</a><a href="{BASE_URL}?page=privacy" target="_top">プライバシーポリシー</a><a href="{BASE_URL}?page=legal" target="_top">特定商取引法</a></div>', unsafe_allow_html=True)
     st.stop()
@@ -505,6 +521,78 @@ if page == "reply_view":
             st.markdown(f'<div style="margin-top:8px;font-size:12px;color:rgba(240,240,245,0.4);">🔗 <a href="{proof_url}" target="_top" style="color:#8b5cf6;">応援証明ページを確認</a></div>', unsafe_allow_html=True)
 
     st.markdown(f'<div class="oshi-footer" style="margin-top:28px;">Powered by <a href="{BASE_URL}?page=dashboard">OshiPay</a></div>', unsafe_allow_html=True)
+    st.stop()
+
+# ── 応援履歴ページ（サポーター向け）──
+if page == "my_history":
+    st.markdown('<div class="oshi-logo"><span class="icon">🔥</span> <span class="text">OshiPay</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">📋 応援履歴</div>', unsafe_allow_html=True)
+
+    sids_param = params.get("sids", "")
+
+    if not sids_param:
+        # localStorageからsupport_idリストを読み込んでURLに付け直す
+        components.html(f"""
+        <script>
+        try {{
+            var h = JSON.parse(localStorage.getItem('oshipay_history') || '[]');
+            if (h.length > 0) {{
+                window.top.location.href = '{BASE_URL}?page=my_history&sids=' + h.join(',');
+            }}
+        }} catch(e) {{}}
+        </script>
+        """, height=60)
+        st.markdown('<div style="text-align:center;color:rgba(240,240,245,0.45);font-size:13px;margin-top:20px;">読み込み中... または応援履歴がありません。</div>', unsafe_allow_html=True)
+        st.stop()
+
+    sids = [s.strip() for s in sids_param.split(",") if s.strip()][:50]
+    records = [get_support(sid) for sid in sids]
+    records = [r for r in records if r]
+
+    if not records:
+        st.markdown("""
+        <div style="background:rgba(255,255,255,0.03);border:1px dashed rgba(255,255,255,0.12);
+                    border-radius:12px;padding:32px;text-align:center;margin-top:20px;">
+            <div style="font-size:48px;margin-bottom:12px;">📭</div>
+            <div style="color:rgba(240,240,245,0.5);font-size:14px;">応援履歴がありません</div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.stop()
+
+    st.markdown(f'<div style="font-size:13px;color:rgba(240,240,245,0.5);margin-bottom:16px;">{len(records)}件の応援記録</div>', unsafe_allow_html=True)
+
+    for record in records:
+        amt_disp = f"¥{record['amount']:,}"
+        date_disp = record["created_at"][:10]
+        msg_disp = record["message"] if record["message"] else "（メッセージなし）"
+        has_reply = bool(record.get("reply_emoji") or record.get("reply_text"))
+        proof_url = f"{BASE_URL}?page=my_support&sid={record['support_id']}"
+        reply_badge = f'<span style="color:#22c55e;font-size:11px;">💬 返信あり</span>' if has_reply else '<span style="color:rgba(240,240,245,0.35);font-size:11px;">⏳ 返信待ち</span>'
+
+        st.markdown(f"""
+        <a href="{proof_url}" target="_top" style="text-decoration:none;">
+        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);
+                    border-radius:14px;padding:16px;margin-bottom:10px;cursor:pointer;
+                    transition:border-color 0.2s;" onmouseover="this.style.borderColor='rgba(139,92,246,0.4)'"
+                    onmouseout="this.style.borderColor='rgba(255,255,255,0.1)'">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <div style="font-weight:700;color:#f0f0f5;font-size:15px;">{record['creator_name']}</div>
+                <div style="font-size:20px;font-weight:900;
+                            background:linear-gradient(135deg,#8b5cf6,#ec4899);
+                            -webkit-background-clip:text;-webkit-text-fill-color:transparent;">
+                    {amt_disp}
+                </div>
+            </div>
+            <div style="font-size:12px;color:rgba(240,240,245,0.6);margin-bottom:4px;">💬 {msg_disp}</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div style="font-size:11px;color:rgba(240,240,245,0.35);">{date_disp}</div>
+                {reply_badge}
+            </div>
+        </div>
+        </a>
+        """, unsafe_allow_html=True)
+
+    st.markdown(f'<div class="oshi-footer" style="margin-top:24px;">Powered by <a href="{BASE_URL}?page=dashboard">OshiPay</a></div>', unsafe_allow_html=True)
     st.stop()
 
 # ── キャンセル ──
@@ -705,6 +793,20 @@ else: # Dashboard
                     st.rerun()
         else:
             st.warning("発行・連携を進めるには上のチェックボックスをオンにしてください。")
+
+        # ── 既存アカウント復元フォーム ──
+        st.markdown('<div class="oshi-divider"></div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:13px;color:rgba(240,240,245,0.5);text-align:center;margin-bottom:12px;">既にアカウントをお持ちの方</div>', unsafe_allow_html=True)
+        with st.expander("🔑 アカウントIDで復元する"):
+            st.markdown('<div style="font-size:12px;color:rgba(240,240,245,0.55);margin-bottom:12px;">以前に発行したQRコードのURLに含まれる <code>acct_</code> から始まるIDを入力してください。</div>', unsafe_allow_html=True)
+            recover_input = st.text_input("アカウントID", placeholder="acct_xxxxxxxxxxxxxxxxxx", label_visibility="collapsed")
+            if st.button("✅ このアカウントで開く", use_container_width=True):
+                rid = recover_input.strip()
+                if rid.startswith("acct_") and len(rid) > 10:
+                    st.query_params["acct"] = rid
+                    st.rerun()
+                else:
+                    st.error("正しいアカウントID（acct_ から始まる文字列）を入力してください。")
     else:
         st.markdown(f"""
         <div style="background: rgba(139,92,246,0.1); border: 1px solid rgba(139,92,246,0.2); border-radius: 12px; padding: 16px; margin-bottom: 20px;">
