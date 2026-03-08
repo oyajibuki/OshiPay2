@@ -918,9 +918,9 @@ elif page == "portfolio":
         </div>
         """, unsafe_allow_html=True)
     
-    share_text = f"私のOshiPay応援実績はこちら！総額 ¥{total_amount:,}\n#OshiPay2"
-    st.link_button("𝕏 でドヤる", f"https://twitter.com/intent/tweet?text={urllib.parse.quote(share_text)}&url={urllib.parse.quote(f'{BASE_URL}?page=portfolio&id={p_id}')}", use_container_width=True)
-    st.link_button("🔥 OshiPayとは？サービスはこちら", f"{BASE_URL}?page=lp", use_container_width=True)
+    share_text = f"私のOshiPay応援実績はこちら！総額 ¥{total_amount:,}\n{BASE_URL}?page=portfolio&id={p_id}\n#OshiPay2"
+    st.link_button("𝕏 でドヤる", f"https://twitter.com/intent/tweet?text={urllib.parse.quote(share_text)}", use_container_width=True)
+    st.link_button("🔥 あなたもOshiPayを始めよう", f"{BASE_URL}?page=lp", use_container_width=True)
     st.stop()
 
 # ── サポーター用ダッシュボード ──
