@@ -142,26 +142,63 @@ def get_font(size):
         from PIL import ImageFont
         return ImageFont.load_default()
 
-def generate_certificate_image(creator_name, amount, date_str, support_id):
+def generate_coin_image(creator_name, amount, date_str, support_id, tier="bronze"):
     from PIL import Image, ImageDraw
-    width, height = 800, 450
-    img = Image.new("RGB", (width, height), "#08080f")
+    size = 500
+    img = Image.new("RGB", (size, size), "#08080f")
     draw = ImageDraw.Draw(img)
-    draw.rectangle([10, 10, width-10, height-10], outline="#8b5cf6", width=4)
-    draw.rectangle([15, 15, width-15, height-15], outline="#ec4899", width=2)
-    font_title = get_font(48)
-    font_large = get_font(64)
-    font_medium = get_font(32)
-    font_small = get_font(24)
-    draw.text((width//2, 80), "🏅 応援証明書", font=font_title, fill="#f0f0f5", anchor="mm")
-    draw.text((width//2, 170), f"{creator_name} 様へ", font=font_medium, fill="#c4b5fd", anchor="mm")
-    draw.text((width//2, 260), f"¥{amount:,}", font=font_large, fill="#f97316", anchor="mm")
-    draw.text((40, 390), f"Date: {date_str}", font=font_small, fill="#888899")
-    draw.text((width-40, 390), f"ID: {support_id[:8]}", font=font_small, fill="#888899", anchor="rm")
+    cx, cy = size // 2, size // 2
+
+    # Tier colour palette
+    if tier == "gold":
+        c_outer = "#a07800"; c_rim = "#c8a200"; c_face = "#ffd700"; c_hi = "#fff080"
+        c_dark  = "#7a5500"; c_text = "#3d2800"; tier_label = "GOLD"; status_jp = "\u30e1\u30c3\u30bb\u30fc\u30b8\u8fd4\u4fe1\u3042\u308a"
+    elif tier == "silver":
+        c_outer = "#606060"; c_rim = "#909090"; c_face = "#c0c0c0"; c_hi = "#e8e8e8"
+        c_dark  = "#505050"; c_text = "#1a1a1a"; tier_label = "SILVER"; status_jp = "\u30b9\u30bf\u30f3\u30d7\u8fd4\u4fe1\u3042\u308a"
+    else:  # bronze
+        c_outer = "#6b3510"; c_rim = "#9a5c20"; c_face = "#cd7f32"; c_hi = "#e8a060"
+        c_dark  = "#5a2c08"; c_text = "#2a1000"; tier_label = "BRONZE"; status_jp = "\u5fdc\u63f4\u6e08\u307f"
+
+    # Coin layers (concentric circles for metallic depth)
+    draw.ellipse([cx-228, cy-228, cx+228, cy+228], fill=c_dark)    # shadow
+    draw.ellipse([cx-220, cy-220, cx+220, cy+220], fill=c_outer)   # outer rim
+    draw.ellipse([cx-208, cy-208, cx+208, cy+208], fill=c_rim)     # main rim
+    draw.ellipse([cx-195, cy-195, cx+195, cy+195], fill=c_face)    # face
+    draw.ellipse([cx-182, cy-182, cx+182, cy+182], fill=c_hi)      # highlight ring
+    draw.ellipse([cx-168, cy-168, cx+168, cy+168], fill=c_face)    # inner face
+
+    font_tier  = get_font(18)
+    font_amt   = get_font(54)
+    font_name  = get_font(22)
+    font_small = get_font(15)
+
+    # Tier badge (top of coin)
+    try:
+        draw.rounded_rectangle([cx-52, cy-148, cx+52, cy-118], radius=9, fill=c_dark)
+    except AttributeError:
+        draw.rectangle([cx-52, cy-148, cx+52, cy-118], fill=c_dark)
+    draw.text((cx, cy-133), tier_label, font=font_tier, fill="#ffffff", anchor="mm")
+
+    # Amount (large centre)
+    draw.text((cx, cy-32), f"\u00a5{amount:,}", font=font_amt, fill=c_text, anchor="mm")
+
+    # Creator name (truncate if too long)
+    cn = creator_name if len(creator_name) <= 14 else creator_name[:13] + "\u2026"
+    draw.text((cx, cy+32), cn, font=font_name, fill=c_text, anchor="mm")
+
+    # Status label
+    draw.text((cx, cy+78), status_jp, font=font_small, fill=c_dark, anchor="mm")
+
+    # Date
+    draw.text((cx, cy+112), date_str, font=font_small, fill=c_dark, anchor="mm")
+
+    # ID
+    draw.text((cx, cy+140), f"ID: {support_id[:8]}", font=font_small, fill=c_dark, anchor="mm")
+
     buf = io.BytesIO()
     img.save(buf, format="PNG")
-    b64 = base64.b64encode(buf.getvalue()).decode()
-    return b64
+    return base64.b64encode(buf.getvalue()).decode()
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Supabase 永続化
@@ -404,7 +441,8 @@ if page == "success":
         except Exception:
             pass  # メール失敗はサイレントに
 
-    share_text = f"{s_name}さんを応援したよ！\n{BASE_URL} #OshiPay"
+    portfolio_url = f"{BASE_URL}?page=portfolio&id={s_sup_id}" if s_sup_id else BASE_URL
+    share_text = f"{s_name}にOshiPayで応援したよ！\n{portfolio_url}\n#OshiPay2"
     st.link_button("𝕏 でシェア", f"https://twitter.com/intent/tweet?text={urllib.parse.quote(share_text)}", use_container_width=True)
     st.markdown(f'<div style="text-align:center;margin-top:20px;"><a href="{BASE_URL}?page=supporter_dashboard" target="_top" style="display:inline-block; font-size:14px; font-weight:700; color:#c4b5fd; text-decoration:none; background:rgba(139,92,246,0.15); border:1px solid rgba(139,92,246,0.4); border-radius:12px; padding:10px 20px;">🦸 サポーター機能で応援を記録する</a></div>', unsafe_allow_html=True)
     st.markdown(f'<div style="text-align:center;margin-top:10px;"><a href="{BASE_URL}?page=my_history" target="_top" style="font-size:12px;color:rgba(240,240,245,0.4); text-decoration:underline;">（ブラウザ限定）簡易履歴を見る</a></div>', unsafe_allow_html=True)
@@ -427,70 +465,71 @@ if page == "my_support":
         st.warning("応援記録が見つかりません。決済直後の場合は数秒後に再読み込みしてください。")
         st.stop()
 
-    # ── 応援内容カード ──
-    amt_disp = f"¥{record['amount']:,}"
-    created_disp = record["created_at"][:10]
-    msg_disp = record["message"] if record["message"] else "（メッセージなし）"
+    # ── コインティア判定 ──
+    has_reply_text  = bool(record.get("reply_text"))
+    has_reply_emoji = bool(record.get("reply_emoji"))
+    if has_reply_text:
+        coin_tier    = "gold"
+        tier_label   = "GOLD"; tier_color = "#ffd700"; status_text = "メッセージ返信あり 💬"
+    elif has_reply_emoji:
+        coin_tier    = "silver"
+        tier_label   = "SILVER"; tier_color = "#c0c0c0"; status_text = "スタンプ返信あり ✨"
+    else:
+        coin_tier    = "bronze"
+        tier_label   = "BRONZE"; tier_color = "#cd7f32"; status_text = "応援済み 🥉"
 
-    # デジタルコレクタブルカードの生成
-    b64_card = generate_certificate_image(record['creator_name'], record['amount'], created_disp, record['support_id'])
-    
-    st.markdown(f'<div style="text-align:center; margin-bottom:20px;"><img src="data:image/png;base64,{b64_card}" style="max-width:100%; border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,0.4);" /></div>', unsafe_allow_html=True)
+    amt_disp     = f"¥{record['amount']:,}"
+    created_disp = record["created_at"][:10]
+
+    # コイン画像生成
+    b64_card = generate_coin_image(
+        record['creator_name'], record['amount'], created_disp, record['support_id'], coin_tier
+    )
+
+    st.markdown(
+        f'<div style="text-align:center; margin-bottom:20px;">'
+        f'<img src="data:image/png;base64,{b64_card}" '
+        f'style="width:260px; height:260px; border-radius:50%; box-shadow:0 8px 32px rgba(0,0,0,0.55);" /></div>',
+        unsafe_allow_html=True,
+    )
+
     st.download_button(
-        label="📥 コレクタブルカード画像を保存",
+        label="📥 コインバッジを保存",
         data=base64.b64decode(b64_card),
-        file_name=f"oshipay_card_{record['support_id'][:8]}.png",
+        file_name=f"oshipay_coin_{record['support_id'][:8]}.png",
         mime="image/png",
         use_container_width=True,
     )
-    
+
+    # ── ステータスカード（内容は非表示・ステータスのみ）──
     st.markdown(f"""
     <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
-                border-radius: 16px; padding: 24px; margin-bottom: 20px;">
-        <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
-            <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#8b5cf6,#ec4899,#f97316);
-                        display:flex;align-items:center;justify-content:center;font-size:22px;">🔥</div>
-            <div>
-                <div style="color:#f0f0f5;font-weight:700;font-size:17px;">{record['creator_name']}</div>
+                border-radius: 16px; padding: 20px; margin: 16px 0;">
+        <div style="display:flex; align-items:center; gap:12px;">
+            <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#8b5cf6,#ec4899,#f97316);
+                        display:flex;align-items:center;justify-content:center;font-size:20px;">🔥</div>
+            <div style="flex:1;">
+                <div style="color:#f0f0f5;font-weight:700;font-size:16px;">{record['creator_name']}</div>
                 <div style="color:rgba(240,240,245,0.5);font-size:12px;">{created_disp} に応援</div>
             </div>
-            <div style="margin-left:auto;font-size:28px;font-weight:900;
+            <div style="font-size:22px;font-weight:900;
                         background:linear-gradient(135deg,#8b5cf6,#ec4899,#f97316);
                         -webkit-background-clip:text;-webkit-text-fill-color:transparent;">
                 {amt_disp}
             </div>
         </div>
-        <div style="background:rgba(255,255,255,0.03);border-radius:10px;padding:12px;
-                    font-size:13px;color:rgba(240,240,245,0.8);line-height:1.6;">
-            💬 {msg_disp}
+        <div style="margin-top:14px; display:flex; align-items:center; gap:8px;">
+            <span style="display:inline-block; background:{tier_color}33; border:1px solid {tier_color}99;
+                         color:{tier_color}; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px;">
+                {tier_label}
+            </span>
+            <span style="font-size:12px; color:rgba(240,240,245,0.6);">{status_text}</span>
+        </div>
+        <div style="margin-top:8px; font-size:11px; color:rgba(240,240,245,0.35);">
+            応援ID: {record['support_id'][:8]}
         </div>
     </div>
     """, unsafe_allow_html=True)
-
-    # ── クリエイターからの返信 ──
-    st.markdown('<div style="font-size:15px;font-weight:700;color:#f0f0f5;margin-bottom:12px;">📩 クリエイターからの返信</div>', unsafe_allow_html=True)
-
-    if record["reply_emoji"] or record["reply_text"]:
-        replied_disp = record["replied_at"][:10] if record.get("replied_at") else ""
-        st.markdown(f"""
-        <div style="background: linear-gradient(135deg, rgba(139,92,246,0.15), rgba(236,72,153,0.1));
-                    border: 1px solid rgba(139,92,246,0.3); border-radius: 16px; padding: 20px; margin-bottom:16px;">
-            <div style="font-size:36px; text-align:center; margin-bottom:10px;">{record['reply_emoji'] or ''}</div>
-            <div style="font-size:14px; color:#f0f0f5; text-align:center; line-height:1.7;">
-                {record['reply_text'] or ''}
-            </div>
-            <div style="font-size:11px; color:rgba(240,240,245,0.4); text-align:right; margin-top:10px;">
-                {replied_disp}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown("""
-        <div style="background:rgba(255,255,255,0.03);border:1px dashed rgba(255,255,255,0.12);
-                    border-radius:12px;padding:20px;text-align:center;color:rgba(240,240,245,0.45);font-size:13px;">
-            まだ返信がありません。クリエイターからの返信をお待ちください 🕐
-        </div>
-        """, unsafe_allow_html=True)
 
     st.markdown(f'<div class="oshi-footer" style="margin-top:28px;">Powered by <a href="{BASE_URL}?page=dashboard">OshiPay</a></div>', unsafe_allow_html=True)
     st.markdown(f'<div class="legal-links text-center pt-2"><a href="{BASE_URL}?page=terms" target="_top">利用規約</a><a href="{BASE_URL}?page=privacy" target="_top">プライバシーポリシー</a><a href="{BASE_URL}?page=legal" target="_top">特定商取引法</a></div>', unsafe_allow_html=True)
@@ -807,7 +846,8 @@ if page == "support" and support_user:
 
     st.markdown('<div class="oshi-divider"></div>', unsafe_allow_html=True)
     st.markdown('<div class="section-subtitle" style="text-align:left; margin-bottom:5px;">🎫 あなたのサポーターID（任意）</div><div style="font-size:11px;color:rgba(240,240,245,0.5);margin-bottom:10px;">IDを入れると実績が自動でアカウントに紐づきます。</div>', unsafe_allow_html=True)
-    opt_sup_id = st.text_input("サポーターID", placeholder="sup_xxxxxxxx", label_visibility="collapsed")
+    _default_sup_id = st.session_state.get("supporter_auth", {}).get("supporter_id", "")
+    opt_sup_id = st.text_input("サポーターID", value=_default_sup_id, placeholder="sup_xxxxxxxx", label_visibility="collapsed")
 
     if st.button("🔥 応援する！", disabled=is_disabled):
         amt = st.session_state.amt
@@ -880,6 +920,7 @@ elif page == "portfolio":
     
     share_text = f"私のOshiPay応援実績はこちら！総額 ¥{total_amount:,}\n#OshiPay2"
     st.link_button("𝕏 でドヤる", f"https://twitter.com/intent/tweet?text={urllib.parse.quote(share_text)}&url={urllib.parse.quote(f'{BASE_URL}?page=portfolio&id={p_id}')}", use_container_width=True)
+    st.link_button("🔥 OshiPayとは？サービスはこちら", f"{BASE_URL}?page=lp", use_container_width=True)
     st.stop()
 
 # ── サポーター用ダッシュボード ──
