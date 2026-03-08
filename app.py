@@ -144,9 +144,21 @@ def get_font(size):
 
 def generate_coin_image(creator_name, amount, date_str, support_id, rank=1, reply_tier="none"):
     """
+    3軸スコアリングコインバッジ
     rank       : クリエイターへの何番目の応援か（1始まり）
+    amount     : 応援金額（円）
     reply_tier : "none" | "emoji" | "text"
-    本体色=ランク希少度、ふち色=返信ステータス
+
+    ■ スコア計算
+      rank_pts   : #1-9=3, #10-99=2, #100-999=1, #1000+=0
+      amount_pts : ¥100,000+=3, ¥10,000+=2, ¥1,000+=1, <¥1,000=0
+      score = rank_pts + amount_pts  (0〜6)
+
+    ■ 本体色（score基準）
+      6=LEGEND(紫), 5=DIAMOND(青), 4=GOLD(金), 2-3=SILVER(銀), 0-1=BRONZE(銅)
+
+    ■ ふち色（reply_tier基準）
+      text=ゴールドふち, emoji=シルバーふち, none=本体同色
     """
     from PIL import Image, ImageDraw
     size = 500
@@ -154,15 +166,22 @@ def generate_coin_image(creator_name, amount, date_str, support_id, rank=1, repl
     draw = ImageDraw.Draw(img)
     cx, cy = size // 2, size // 2
 
-    # ── 本体色（ランク基準）──
-    if rank <= 9:
-        b_face="#7c3aed"; b_hi="#a78bfa"; b_dark="#4c1d95"; b_text="#ede9fe"; rank_label="FOUNDER"
-    elif rank <= 99:
-        b_face="#ffd700"; b_hi="#fff8a0"; b_dark="#a07800"; b_text="#3d2800"; rank_label="EARLY"
-    elif rank <= 999:
-        b_face="#c0c0c0"; b_hi="#e8e8e8"; b_dark="#606060"; b_text="#1a1a1a"; rank_label="SUPPORTER"
+    # ── スコア計算 ──
+    rank_pts   = 3 if rank <= 9   else (2 if rank <= 99   else (1 if rank <= 999 else 0))
+    amount_pts = 3 if amount >= 100000 else (2 if amount >= 10000 else (1 if amount >= 1000 else 0))
+    score = rank_pts + amount_pts  # 0〜6
+
+    # ── 本体色（スコア基準）──
+    if score == 6:
+        b_face="#7c3aed"; b_hi="#c4b5fd"; b_dark="#3b0764"; b_text="#ede9fe"; tier_label="LEGEND"
+    elif score == 5:
+        b_face="#0ea5e9"; b_hi="#7dd3fc"; b_dark="#0369a1"; b_text="#e0f2fe"; tier_label="DIAMOND"
+    elif score >= 4:
+        b_face="#ffd700"; b_hi="#fff8a0"; b_dark="#a07800"; b_text="#3d2800"; tier_label="GOLD"
+    elif score >= 2:
+        b_face="#c0c0c0"; b_hi="#e8e8e8"; b_dark="#606060"; b_text="#1a1a1a"; tier_label="SILVER"
     else:
-        b_face="#cd7f32"; b_hi="#e8a060"; b_dark="#7a3c10"; b_text="#2a1000"; rank_label="FAN"
+        b_face="#cd7f32"; b_hi="#e8a060"; b_dark="#7a3c10"; b_text="#2a1000"; tier_label="BRONZE"
 
     # ── ふち色（返信ステータス基準）──
     if reply_tier == "text":
@@ -185,14 +204,14 @@ def generate_coin_image(creator_name, amount, date_str, support_id, rank=1, repl
     font_rank  = get_font(64)   # ランク番号を最大に
     font_amt   = get_font(34)
     font_name  = get_font(20)
-    font_small = get_font(14)
+    font_small = get_font(13)
 
-    # ランクラベルバッジ（上部）
+    # ティアラベルバッジ（上部）
     try:
-        draw.rounded_rectangle([cx-55, cy-148, cx+55, cy-120], radius=8, fill=b_dark)
+        draw.rounded_rectangle([cx-60, cy-148, cx+60, cy-120], radius=8, fill=b_dark)
     except AttributeError:
-        draw.rectangle([cx-55, cy-148, cx+55, cy-120], fill=b_dark)
-    draw.text((cx, cy-134), rank_label, font=font_label, fill=b_hi, anchor="mm")
+        draw.rectangle([cx-60, cy-148, cx+60, cy-120], fill=b_dark)
+    draw.text((cx, cy-134), tier_label, font=font_label, fill=b_hi, anchor="mm")
 
     # ランク番号（最重要・最大表示）
     rank_str = f"#{rank:03d}" if rank <= 999 else f"#{rank}"
@@ -205,11 +224,15 @@ def generate_coin_image(creator_name, amount, date_str, support_id, rank=1, repl
     cn = creator_name if len(creator_name) <= 14 else creator_name[:13] + "\u2026"
     draw.text((cx, cy+76), cn, font=font_name, fill=b_text, anchor="mm")
 
+    # スコア内訳（小さく）
+    score_detail = f"rank+{rank_pts} amt+{amount_pts} = {score}pt"
+    draw.text((cx, cy+108), score_detail, font=font_small, fill=b_dark, anchor="mm")
+
     # 日付
-    draw.text((cx, cy+112), date_str, font=font_small, fill=b_dark, anchor="mm")
+    draw.text((cx, cy+128), date_str, font=font_small, fill=b_dark, anchor="mm")
 
     # ID
-    draw.text((cx, cy+138), f"ID: {support_id[:8]}", font=font_small, fill=b_dark, anchor="mm")
+    draw.text((cx, cy+146), f"ID: {support_id[:8]}", font=font_small, fill=b_dark, anchor="mm")
 
     buf = io.BytesIO()
     img.save(buf, format="PNG")
@@ -489,6 +512,7 @@ if page == "my_support":
 
     # ── ランク & 返信ステータス判定 ──
     coin_rank   = record.get("creator_rank") or 1
+    coin_amount = record.get("amount") or 0
     has_reply_text  = bool(record.get("reply_text"))
     has_reply_emoji = bool(record.get("reply_emoji"))
 
@@ -499,20 +523,33 @@ if page == "my_support":
     else:
         reply_tier = "none";  rim_label = "";            rim_color = "#555";    status_text = "返信待ち 🕐"
 
-    if coin_rank <= 9:
-        rank_label = "FOUNDER"; rank_color = "#a78bfa"
-    elif coin_rank <= 99:
-        rank_label = "EARLY";   rank_color = "#ffd700"
-    elif coin_rank <= 999:
-        rank_label = "SUPPORTER"; rank_color = "#c0c0c0"
+    # ── 3軸スコアリング（rank_pts + amount_pts → ティア）──
+    rank_pts   = 3 if coin_rank <= 9   else (2 if coin_rank <= 99   else (1 if coin_rank <= 999 else 0))
+    amount_pts = 3 if coin_amount >= 100000 else (2 if coin_amount >= 10000 else (1 if coin_amount >= 1000 else 0))
+    score = rank_pts + amount_pts
+
+    if score == 6:
+        tier_label = "LEGEND";  tier_color = "#a78bfa"
+    elif score == 5:
+        tier_label = "DIAMOND"; tier_color = "#7dd3fc"
+    elif score >= 4:
+        tier_label = "GOLD";    tier_color = "#ffd700"
+    elif score >= 2:
+        tier_label = "SILVER";  tier_color = "#c0c0c0"
     else:
-        rank_label = "FAN";     rank_color = "#cd7f32"
+        tier_label = "BRONZE";  tier_color = "#cd7f32"
 
     rank_str     = f"#{coin_rank:03d}" if coin_rank <= 999 else f"#{coin_rank}"
     amt_disp     = f"¥{record['amount']:,}"
     created_disp = record["created_at"][:10]
 
-    # コイン画像生成（本体=ランク色、ふち=返信色）
+    # rim_badge_htmlを事前計算（nested f-stringバグ回避）
+    rim_badge_html = (
+        f'<span style="background:#ffd70022; border:1px solid #ffd70099; color:#ffd700; '
+        f'font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px;">{rim_label}</span>'
+    ) if rim_label else ''
+
+    # コイン画像生成（3軸スコアリング）
     b64_card = generate_coin_image(
         record['creator_name'], record['amount'], created_disp, record['support_id'],
         rank=coin_rank, reply_tier=reply_tier
@@ -551,11 +588,11 @@ if page == "my_support":
             </div>
         </div>
         <div style="margin-top:14px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-            <span style="background:{rank_color}22; border:1px solid {rank_color}99;
-                         color:{rank_color}; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px;">
-                {rank_label} {rank_str}
+            <span style="background:{tier_color}22; border:1px solid {tier_color}99;
+                         color:{tier_color}; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px;">
+                {tier_label} {rank_str}
             </span>
-            {f'<span style="background:#ffd70022; border:1px solid #ffd70099; color:#ffd700; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px;">{rim_label}</span>' if rim_label else ''}
+            {rim_badge_html}
             <span style="font-size:12px; color:rgba(240,240,245,0.6);">{status_text}</span>
         </div>
         <div style="margin-top:8px; font-size:11px; color:rgba(240,240,245,0.35);">
@@ -576,6 +613,18 @@ if page == "reply_view":
 
     if not rv_acct:
         st.error("アカウントIDが指定されていません。ダッシュボードから開いてください。")
+        st.stop()
+
+    # ── パスワード認証 ──
+    if st.session_state.get("reply_auth") != rv_acct:
+        st.markdown('<div class="section-subtitle">クリエイターダッシュボードのパスワードを入力してください</div>', unsafe_allow_html=True)
+        rv_pass = st.text_input("パスワード", type="password", key="rv_pass", value="test1234")
+        if st.button("🔓 ロックを解除", type="primary", use_container_width=True):
+            if verify_creator(rv_acct, rv_pass):
+                st.session_state["reply_auth"] = rv_acct
+                st.rerun()
+            else:
+                st.error("パスワードが違います。")
         st.stop()
 
     supports = get_supports_for_creator(rv_acct)
@@ -824,7 +873,7 @@ if page == "nav":
         st.markdown(f'<div style="font-size:13px;font-weight:700;color:rgba(240,240,245,0.5);letter-spacing:0.08em;margin:20px 0 8px;">{txt}</div>', unsafe_allow_html=True)
     _nav_header("🧭 サポーター導線")
     st.link_button("🏠 LP（サービス紹介）", f"{BASE_URL}?page=lp", use_container_width=True)
-    st.link_button("🔥 応援ページ（クリエイターに投げ銭）", f"{BASE_URL}?page=support&acct={_acct}&name={_qname}&icon=%F0%9F%8E%A4", use_container_width=True)
+    st.link_button("🔥 応援ページ（クリエイターに投げ銭）", f"{BASE_URL}?page=support&user=test&acct={_acct}&name={_qname}&icon=%F0%9F%8E%A4", use_container_width=True)
     st.link_button("🏅 コインページ（返信なし Bronze → 実際は FOUNDER #001）", f"{BASE_URL}?page=my_support&sid={_sid}", use_container_width=True)
     st.link_button("📋 応援履歴（ブラウザ保存）", f"{BASE_URL}?page=my_history", use_container_width=True)
     st.link_button("🦸 サポーターDL（ログイン: sup_ecfa46e6 / test1234）", f"{BASE_URL}?page=supporter_dashboard", use_container_width=True)
@@ -997,8 +1046,8 @@ elif page == "supporter_dashboard":
         tab_login, tab_register = st.tabs(["🔑 ログイン", "✨ 新規アカウント作成"])
         
         with tab_login:
-            l_id = st.text_input("サポーターID", key="l_id", placeholder="sup_xxxxxxxx")
-            l_pass = st.text_input("パスワード", type="password", key="l_pass")
+            l_id = st.text_input("サポーターID", key="l_id", value="sup_ecfa46e6")
+            l_pass = st.text_input("パスワード", type="password", key="l_pass", value="test1234")
             if st.button("ログイン", use_container_width=True):
                 resp = get_db().table("supporters").select("*").eq("supporter_id", l_id).execute()
                 if not resp.data:
@@ -1051,7 +1100,7 @@ elif page == "supporter_dashboard":
     # 応援を紐づける
     st.markdown('<div class="header" style="font-size:16px;">🎫 過去の応援を紐づける</div>', unsafe_allow_html=True)
     st.markdown('<div style="font-size:11px; color:rgba(255,255,255,0.5); margin-bottom:10px;">応援証明書（<code>?page=my_support&sid=xxx</code>）の <code>xxx</code> の部分（support_id）を入力してください。</div>', unsafe_allow_html=True)
-    claim_id = st.text_input("応援証明書IDを入力", placeholder="例： 123e4567-e89b-12d3... または test_dummy...")
+    claim_id = st.text_input("応援証明書IDを入力", value="a4b5d9c5-885f-40f7-a934-fac773f51b81", placeholder="例： 123e4567-e89b-12d3...")
     if st.button("このアカウントに紐づける"):
         if claim_id:
             s_data = get_support(claim_id)
@@ -1143,8 +1192,8 @@ else: # Dashboard
                 </div>
             </div>
             """, unsafe_allow_html=True)
-            recover_input = st.text_input("アカウントID", placeholder="acct_xxxxxxxxxxxxxxxxxx", label_visibility="collapsed")
-            recover_pass = st.text_input("パスワード", type="password", placeholder="パスワードを入力")
+            recover_input = st.text_input("アカウントID", value="acct_1T6mAjFIcplqHdko", placeholder="acct_xxxxxxxxxxxxxxxxxx", label_visibility="collapsed")
+            recover_pass = st.text_input("パスワード", type="password", value="test1234", placeholder="パスワードを入力")
             if st.button("✅ このアカウントで開く", use_container_width=True):
                 rid = recover_input.strip()
                 if rid.startswith("acct_") and len(rid) > 10 and recover_pass:
