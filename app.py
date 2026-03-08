@@ -38,7 +38,7 @@ ICON_OPTIONS = {
     "✂️": "美容師・理容師", "🎮": "ゲーマー・配信者", "📚": "講師・先生",
     "💻": "エンジニア・クリエイター", "🎭": "役者・パフォーマー", "🔥": "その他",
 }
-BASE_URL = os.environ.get("APP_URL", "https://oshipay.streamlit.app")
+BASE_URL = os.environ.get("APP_URL", "https://oshipay2.streamlit.app")
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # ヘルパー関数
@@ -124,6 +124,45 @@ def generate_qr_data(data: str) -> tuple[str, bytes]:
     buf = io.BytesIO(); qr_img.save(buf, format="PNG"); qr_bytes = buf.getvalue(); b64 = base64.b64encode(qr_bytes).decode()
     return b64, qr_bytes
 
+def get_font(size):
+    font_path = "assets/NotoSansJP-Bold.ttf"
+    if not os.path.exists(font_path):
+        os.makedirs("assets", exist_ok=True)
+        url = "https://github.com/google/fonts/raw/main/ofl/notosansjp/NotoSansJP-Bold.ttf"
+        try:
+            import urllib.request
+            urllib.request.urlretrieve(url, font_path)
+        except Exception:
+            from PIL import ImageFont
+            return ImageFont.load_default()
+    try:
+        from PIL import ImageFont
+        return ImageFont.truetype(font_path, size)
+    except Exception:
+        from PIL import ImageFont
+        return ImageFont.load_default()
+
+def generate_certificate_image(creator_name, amount, date_str, support_id):
+    from PIL import Image, ImageDraw
+    width, height = 800, 450
+    img = Image.new("RGB", (width, height), "#08080f")
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([10, 10, width-10, height-10], outline="#8b5cf6", width=4)
+    draw.rectangle([15, 15, width-15, height-15], outline="#ec4899", width=2)
+    font_title = get_font(48)
+    font_large = get_font(64)
+    font_medium = get_font(32)
+    font_small = get_font(24)
+    draw.text((width//2, 80), "🏅 応援証明書", font=font_title, fill="#f0f0f5", anchor="mm")
+    draw.text((width//2, 170), f"{creator_name} 様へ", font=font_medium, fill="#c4b5fd", anchor="mm")
+    draw.text((width//2, 260), f"¥{amount:,}", font=font_large, fill="#f97316", anchor="mm")
+    draw.text((40, 390), f"Date: {date_str}", font=font_small, fill="#888899")
+    draw.text((width-40, 390), f"ID: {support_id[:8]}", font=font_small, fill="#888899", anchor="rm")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    b64 = base64.b64encode(buf.getvalue()).decode()
+    return b64
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # Supabase 永続化
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -139,23 +178,47 @@ def get_db() -> Client:
         st.secrets["SUPABASE_KEY"],
     )
 
-def add_support(support_id: str, creator_acct: str, creator_name: str, amount: int, message: str) -> None:
+def add_support(support_id: str, creator_acct: str, creator_name: str, amount: int, message: str, supporter_id: str = None) -> None:
     """応援記録を追加（support_idのUNIQUE制約で重複は自動無視）"""
     try:
-        get_db().table("supports").insert({
+        data = {
             "support_id": support_id,
             "creator_acct": creator_acct,
             "creator_name": creator_name,
             "amount": amount,
             "message": message,
-        }).execute()
+        }
+        if supporter_id:
+            data["supporter_id"] = supporter_id
+        get_db().table("supports").insert(data).execute()
     except Exception:
         pass  # unique制約違反（ページリロード時の重複）は無視
 
 def get_support(support_id: str) -> dict | None:
     """support_id で1件取得"""
-    resp = get_db().table("supports").select("*").eq("support_id", support_id).execute()
-    return resp.data[0] if resp.data else None
+    try:
+        resp = get_db().table("supports").select("*").eq("support_id", support_id).execute()
+        return resp.data[0] if resp.data else None
+    except Exception:
+        return None
+
+import hashlib
+
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def verify_creator(acct_id: str, password: str) -> bool:
+    try:
+        resp = get_db().table("creators").select("*").eq("acct_id", acct_id).execute()
+        if not resp.data: return False
+        return resp.data[0]["password_hash"] == hash_password(password)
+    except Exception: return False
+
+def register_creator(acct_id: str, password: str) -> bool:
+    try:
+        get_db().table("creators").insert({"acct_id": acct_id, "password_hash": hash_password(password)}).execute()
+        return True
+    except Exception: return False
 
 def set_reply(support_id: str, emoji: str, text: str) -> bool:
     """クリエイターの返信を保存"""
@@ -270,6 +333,7 @@ if page == "lp":
     </style>
     """, unsafe_allow_html=True)
     components.html(lp_html, height=5800)
+    st.markdown(f'<div style="text-align:center; padding-bottom: 40px;"><a href="{BASE_URL}?page=supporter_dashboard" target="_top" style="display:inline-block; background:rgba(139,92,246,0.15); border:1px solid rgba(139,92,246,0.5); padding:10px 20px; border-radius:12px; color:#c4b5fd; text-decoration:none; font-weight:700; font-size:14px;">🦸 過去の応援を管理する（サポーターダッシュボードへ）</a></div>', unsafe_allow_html=True)
     st.stop()
 
 # ── 成功ページ ──
@@ -283,6 +347,7 @@ if page == "success":
     s_acct = params.get("s_acct", "")
     s_msg = params.get("s_msg", "")
     s_sid = params.get("s_sid", "")
+    s_sup_id = params.get("s_sup_id", "")
 
     # ── 応援金額のパース ──
     try:
@@ -292,7 +357,7 @@ if page == "success":
 
     # ── 応援記録を Supabase に保存（冪等: s_sid があれば1回のみ） ──
     if s_sid and s_acct and s_amt > 0:
-        add_support(s_sid, s_acct, s_name, s_amt, s_msg)
+        add_support(s_sid, s_acct, s_name, s_amt, s_msg, s_sup_id)
 
     # ── support_id を localStorage の履歴に追記 ──
     if s_sid:
@@ -344,7 +409,8 @@ if page == "success":
 
     share_text = f"{s_name}さんを応援したよ！\n{BASE_URL} #OshiPay"
     st.link_button("𝕏 でシェア", f"https://twitter.com/intent/tweet?text={urllib.parse.quote(share_text)}", use_container_width=True)
-    st.markdown(f'<div style="text-align:center;margin-top:10px;"><a href="{BASE_URL}?page=my_history" target="_top" style="font-size:13px;color:rgba(240,240,245,0.5);">📋 応援履歴を見る</a></div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="text-align:center;margin-top:20px;"><a href="{BASE_URL}?page=supporter_dashboard" target="_top" style="display:inline-block; font-size:14px; font-weight:700; color:#c4b5fd; text-decoration:none; background:rgba(139,92,246,0.15); border:1px solid rgba(139,92,246,0.4); border-radius:12px; padding:10px 20px;">🦸 サポーター機能で応援を記録する</a></div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="text-align:center;margin-top:10px;"><a href="{BASE_URL}?page=my_history" target="_top" style="font-size:12px;color:rgba(240,240,245,0.4); text-decoration:underline;">（ブラウザ限定）簡易履歴を見る</a></div>', unsafe_allow_html=True)
     st.markdown(f'<div class="oshi-footer">Powered by <a href="{BASE_URL}?page=dashboard">OshiPay</a></div>', unsafe_allow_html=True)
     st.markdown(f'<div class="legal-links text-center pt-2"><a href="{BASE_URL}?page=terms" target="_top">利用規約</a><a href="{BASE_URL}?page=privacy" target="_top">プライバシーポリシー</a><a href="{BASE_URL}?page=legal" target="_top">特定商取引法</a></div>', unsafe_allow_html=True)
     st.stop()
@@ -369,6 +435,18 @@ if page == "my_support":
     created_disp = record["created_at"][:10]
     msg_disp = record["message"] if record["message"] else "（メッセージなし）"
 
+    # デジタルコレクタブルカードの生成
+    b64_card = generate_certificate_image(record['creator_name'], record['amount'], created_disp, record['support_id'])
+    
+    st.markdown(f'<div style="text-align:center; margin-bottom:20px;"><img src="data:image/png;base64,{b64_card}" style="max-width:100%; border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,0.4);" /></div>', unsafe_allow_html=True)
+    st.download_button(
+        label="📥 コレクタブルカード画像を保存",
+        data=base64.b64decode(b64_card),
+        file_name=f"oshipay_card_{record['support_id'][:8]}.png",
+        mime="image/png",
+        use_container_width=True,
+    )
+    
     st.markdown(f"""
     <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
                 border-radius: 16px; padding: 24px; margin-bottom: 20px;">
@@ -592,6 +670,7 @@ if page == "my_history":
         </a>
         """, unsafe_allow_html=True)
 
+    st.markdown(f'<div style="text-align:center;margin-top:20px;"><a href="{BASE_URL}?page=supporter_dashboard" target="_top" style="display:inline-block; font-size:14px; font-weight:700; color:#c4b5fd; text-decoration:none; background:rgba(139,92,246,0.15); border:1px solid rgba(139,92,246,0.4); border-radius:12px; padding:10px 20px;">🦸 IDを作ってクラウドで一括管理する</a></div>', unsafe_allow_html=True)
     st.markdown(f'<div class="oshi-footer" style="margin-top:24px;">Powered by <a href="{BASE_URL}?page=dashboard">OshiPay</a></div>', unsafe_allow_html=True)
     st.stop()
 
@@ -729,6 +808,10 @@ if page == "support" and support_user:
     </div>
     """, unsafe_allow_html=True)
 
+    st.markdown('<div class="oshi-divider"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-subtitle" style="text-align:left; margin-bottom:5px;">🎫 あなたのサポーターID（任意）</div><div style="font-size:11px;color:rgba(240,240,245,0.5);margin-bottom:10px;">IDを入れると実績が自動でアカウントに紐づきます。</div>', unsafe_allow_html=True)
+    opt_sup_id = st.text_input("サポーターID", placeholder="sup_xxxxxxxx", label_visibility="collapsed")
+
     if st.button("🔥 応援する！", disabled=is_disabled):
         amt = st.session_state.amt
         support_id = str(uuid.uuid4())  # 応援証明用ユニークID
@@ -736,9 +819,9 @@ if page == "support" and support_user:
             checkout_params = {
                 "payment_method_types": ["card"], "mode": "payment",
                 "line_items": [{"price_data": {"currency": "jpy", "product_data": {"name": f"{support_name}への応援"}, "unit_amount": amt}, "quantity": 1}],
-                "success_url": f"{BASE_URL}?page=success&s_name={urllib.parse.quote(support_name)}&s_amt={amt}&s_acct={connect_acct}&s_msg={urllib.parse.quote(msg or '')}&s_sid={support_id}",
+                "success_url": f"{BASE_URL}?page=success&s_name={urllib.parse.quote(support_name)}&s_amt={amt}&s_acct={connect_acct}&s_msg={urllib.parse.quote(msg or '')}&s_sid={support_id}&s_sup_id={opt_sup_id}",
                 "cancel_url": f"{BASE_URL}?page=cancel",
-                "metadata": {"user_id": support_user, "message": msg, "support_id": support_id}
+                "metadata": {"user_id": support_user, "message": msg, "support_id": support_id, "supporter_id": opt_sup_id}
             }
             if connect_acct:
                 checkout_params["payment_intent_data"] = {"application_fee_amount": int(amt * 0.1)}
@@ -750,6 +833,147 @@ if page == "support" and support_user:
     st.markdown(f'<div class="oshi-footer">Powered by <a href="{BASE_URL}?page=dashboard">OshiPay</a></div>', unsafe_allow_html=True)
     st.markdown(f'<div class="legal-links text-center pt-2"><a href="{BASE_URL}?page=terms" target="_top">利用規約</a><a href="{BASE_URL}?page=privacy" target="_top">プライバシーポリシー</a><a href="{BASE_URL}?page=legal" target="_top">特定商取引法</a></div>', unsafe_allow_html=True)
 
+# ── サポーター公開ポートフォリオ ──
+elif page == "portfolio":
+    st.markdown("<style>.stMainBlockContainer, .block-container { max-width: 600px !important; margin: 0 auto; }</style>", unsafe_allow_html=True)
+    p_id = params.get("id", "")
+    st.markdown('<div class="oshi-logo"><span class="icon">🔥</span> <span class="text">OshiPay</span></div>', unsafe_allow_html=True)
+    if not p_id:
+        st.error("サポーターIDが指定されていません。")
+        st.stop()
+        
+    resp = get_db().table("supporters").select("*").eq("supporter_id", p_id).execute()
+    if not resp.data:
+        st.error("サポーターが見つかりません。")
+        st.stop()
+        
+    supporter = resp.data[0]
+    st.markdown(f'<div class="section-title">{supporter["display_name"]} の応援実績 🏅</div>', unsafe_allow_html=True)
+    
+    s_resp = get_db().table("supports").select("*").eq("supporter_id", p_id).order("created_at", desc=True).execute()
+    s_data = s_resp.data or []
+    
+    if not s_data:
+        st.write("まだ応援実績がありません。")
+        st.stop()
+        
+    total_amount = sum(s["amount"] for s in s_data)
+    creators = list(set([s["creator_name"] for s in s_data]))
+    
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown(f'<div style="background:rgba(255,165,0,0.1); border-radius:12px; padding:16px; text-align:center;"><div style="font-size:12px; color:rgba(255,255,255,0.6);">累計応援額</div><div style="font-size:24px; font-weight:700; color:#f97316;">¥{total_amount:,}</div></div>', unsafe_allow_html=True)
+    with c2:
+        st.markdown(f'<div style="background:rgba(139,92,246,0.1); border-radius:12px; padding:16px; text-align:center;"><div style="font-size:12px; color:rgba(255,255,255,0.6);">応援した推し</div><div style="font-size:24px; font-weight:700; color:#c4b5fd;">{len(creators)}人</div></div>', unsafe_allow_html=True)
+    
+    st.markdown("<br>### 🏆 応援実績リスト", unsafe_allow_html=True)
+    for s in s_data:
+        my_url = f"{BASE_URL}?page=my_support&sid={s['support_id']}"
+        st.markdown(f"""
+        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:16px; margin-bottom:10px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <div style="font-weight:700;color:#f0f0f5;font-size:15px;">{s['creator_name']} 様へ ¥{s['amount']:,}</div>
+                    <div style="font-size:11px;color:rgba(240,240,245,0.5);margin-top:4px;">{s['created_at'][:10]}</div>
+                </div>
+                <a href="{my_url}" target="_top" style="font-size:12px;color:#8b5cf6;text-decoration:none;">📄 証明証</a>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    share_text = f"私のOshiPay応援実績はこちら！総額 ¥{total_amount:,}\n#OshiPay2"
+    st.link_button("𝕏 でドヤる", f"https://twitter.com/intent/tweet?text={urllib.parse.quote(share_text)}&url={urllib.parse.quote(f'{BASE_URL}?page=portfolio&id={p_id}')}", use_container_width=True)
+    st.stop()
+
+# ── サポーター用ダッシュボード ──
+elif page == "supporter_dashboard":
+    st.markdown('<div class="oshi-logo"><span class="icon">🔥</span> <span class="text">OshiPay</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">サポーター・ダッシュボード</div>', unsafe_allow_html=True)
+    
+    if "supporter_auth" not in st.session_state:
+        st.info("過去の応援を一つにまとめたり、ドヤるための公開ポートフォリオを作成できます。")
+        tab_login, tab_register = st.tabs(["🔑 ログイン", "✨ 新規アカウント作成"])
+        
+        with tab_login:
+            l_id = st.text_input("サポーターID", key="l_id", placeholder="sup_xxxxxxxx")
+            l_pass = st.text_input("パスワード", type="password", key="l_pass")
+            if st.button("ログイン", use_container_width=True):
+                resp = get_db().table("supporters").select("*").eq("supporter_id", l_id).execute()
+                if not resp.data:
+                    st.error("アカウントが見つかりません。")
+                else:
+                    if resp.data[0]["password_hash"] == hash_password(l_pass):
+                        st.session_state["supporter_auth"] = resp.data[0]
+                        st.rerun()
+                    else:
+                        st.error("パスワードが違います。")
+                        
+        with tab_register:
+            st.markdown('<div style="font-size:12px; color:rgba(255,255,255,0.6); margin-bottom:10px;">名前とパスワードを決めるだけですぐに作成できます！</div>', unsafe_allow_html=True)
+            r_name = st.text_input("表示名 (公開されます)", key="r_name")
+            r_pass = st.text_input("パスワードを決める", type="password", key="r_pass")
+            if st.button("新規アカウントを作成", type="primary", use_container_width=True):
+                if r_name and r_pass:
+                    new_id = f"sup_{str(uuid.uuid4())[:8]}"
+                    try:
+                        get_db().table("supporters").insert({
+                            "supporter_id": new_id,
+                            "display_name": r_name,
+                            "password_hash": hash_password(r_pass)
+                        }).execute()
+                        st.success(f"登録完了！あなたのサポーターIDは `{new_id}` です。")
+                        st.session_state["supporter_auth"] = {
+                            "supporter_id": new_id,
+                            "display_name": r_name
+                        }
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"登録エラー: {e}")
+                else:
+                    st.warning("表示名とパスワードの両方を入力してください。")
+        st.stop()
+        
+    sup_user = st.session_state["supporter_auth"]
+    st.markdown(f'<div style="font-size:18px; font-weight:700; text-align:center; color:#f0f0f5; margin-bottom:5px;">ようこそ、{sup_user["display_name"]} さん！</div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="font-size:13px; text-align:center; color:rgba(255,255,255,0.5); margin-bottom:20px;">あなたのサポーターID: <code>{sup_user["supporter_id"]}</code></div>', unsafe_allow_html=True)
+    
+    st.markdown("""
+    <div style="background: rgba(139,92,246,0.1); border: 1px solid rgba(139,92,246,0.2); border-radius: 12px; padding: 16px; margin-bottom: 24px;">
+        <div style="color: #8b5cf6; font-weight: 700; font-size: 14px; margin-bottom: 8px;">ℹ️ 次回からの応援について</div>
+        <div style="font-size: 12px; color: rgba(240,240,245,0.7);">
+            応援画面（決済画面）でオプションの「サポーターID」欄に上記のIDを入力すると、自動でここに応援実績が貯まります。
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # 応援を紐づける
+    st.markdown('<div class="header" style="font-size:16px;">🎫 過去の応援を紐づける</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-size:11px; color:rgba(255,255,255,0.5); margin-bottom:10px;">応援証明書（<code>?page=my_support&sid=xxx</code>）の <code>xxx</code> の部分（support_id）を入力してください。</div>', unsafe_allow_html=True)
+    claim_id = st.text_input("応援証明書IDを入力", placeholder="例： 123e4567-e89b-12d3... または test_dummy...")
+    if st.button("このアカウントに紐づける"):
+        if claim_id:
+            s_data = get_support(claim_id)
+            if s_data:
+                if s_data.get("supporter_id"):
+                    st.warning("この応援記録はすでに誰かのアカウントに紐づけられています！")
+                else:
+                    get_db().table("supports").update({"supporter_id": sup_user["supporter_id"]}).eq("support_id", claim_id).execute()
+                    st.success("紐づけが完了しました！ポートフォリオに反映されました。")
+            else:
+                st.error("応援記録が見つかりません。入力内容を確認してください。")
+                
+    st.markdown('<div class="oshi-divider"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="header" style="font-size:16px;">📊 ポートフォリオでドヤる</div>', unsafe_allow_html=True)
+    portfolio_url = f"{BASE_URL}?page=portfolio&id={sup_user['supporter_id']}"
+    st.link_button("🌐 公開用ポートフォリオ画面を見る", portfolio_url, use_container_width=True)
+    st.code(portfolio_url, language="text")
+    
+    st.markdown('<div class="oshi-divider"></div>', unsafe_allow_html=True)
+    if st.button("🚪 ログアウト", type="secondary"):
+        del st.session_state["supporter_auth"]
+        st.rerun()
+    st.stop()
+
 else: # Dashboard
     st.markdown('<div class="oshi-logo"><span class="icon">🔥</span> <span class="text">OshiPay</span></div>', unsafe_allow_html=True)
     st.markdown('<div class="section-title">QRコードを発行</div>', unsafe_allow_html=True)
@@ -757,70 +981,112 @@ else: # Dashboard
     acct_id = connect_acct or params.get("acct")
     
     if not acct_id:
-        st.markdown('<div class="header">応援用QRコードを作成</div>', unsafe_allow_html=True)
-        st.write("応援（決済）を受け取るためのStripeアカウントを作成、または連携します。")
+        st.markdown('<div class="header">応援用QRコードを作成・復元</div>', unsafe_allow_html=True)
+        st.write("新しく応援（決済）を受け取るための設定を行うか、以前作成したアカウントを復元します。")
         
-        # 明示的なボタンによる発行の意思確認
-        if st.checkbox("新規にQRコードを発行して応援を受け取りますか？"):
-            if "onboarding_url" not in st.session_state:
-                if st.button("🔗 Stripeアカウントを連携する"):
-                    with st.spinner("Stripeと連携する準備をしています... (数秒かかります)"):
-                        try:
-                            # アカウント作成（ウェブサイトURLなどを事前注入）
-                            acct_id = create_connect_account()
-                            # 登録用リンクを取得して保存
-                            st.session_state.onboarding_url = create_account_link(acct_id)
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"連携エラー: {e}")
-            
-            if "onboarding_url" in st.session_state:
-                st.markdown(f"""
-                <div style="background: rgba(139,92,246,0.1); border: 1px solid rgba(139,92,246,0.2); border-radius: 12px; padding: 20px; text-align: center;">
-                    <div style="font-size: 24px; margin-bottom: 12px;">🌟</div>
-                    <div style="color: #f0f0f5; font-weight: 700; font-size: 16px; margin-bottom: 8px;">ステップ 1/2: Stripeで本人確認</div>
-                    <div style="font-size: 13px; color: rgba(240,240,245,0.7); margin-bottom: 20px;">
-                        下のボタンを押して、Stripeの画面で「本人確認」と「銀行口座」の設定を完了させてください。<br>
-                        完了すると自動的にここに戻ってきます。
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-                st.link_button("👉 Stripeの登録画面へ進む", st.session_state.onboarding_url, type="primary")
-                # 念のための自動リダイレクトJSも併用
-                components.html(f'<script>window.top.location.href = "{st.session_state.onboarding_url}";</script>', height=0)
-                if st.button("❌ キャンセルしてやり直す"):
-                    del st.session_state.onboarding_url
-                    st.rerun()
-        else:
-            st.warning("発行・連携を進めるには上のチェックボックスをオンにしてください。")
+        tab_new, tab_recover = st.tabs(["✨ 新規作成", "🔑 既存アカウントの復元"])
+        
+        with tab_new:
+            st.info("新しく応援受け取りを開始するには、管理用パスワードを作成してください。")
+            new_pass = st.text_input("管理用パスワードを作成", type="password", key="new_pass")
 
-        # ── 既存アカウント復元フォーム ──
-        st.markdown('<div class="oshi-divider"></div>', unsafe_allow_html=True)
-        st.markdown("""
-        <div style="background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.25);
-                    border-radius:14px;padding:16px 20px;margin-bottom:4px;">
-            <div style="font-size:13px;font-weight:700;color:rgba(240,240,245,0.85);margin-bottom:4px;">
-                🔑 既にアカウントをお持ちの方
-            </div>
-            <div style="font-size:12px;color:rgba(240,240,245,0.5);">
-                以前に発行したURLに含まれる <code>acct_</code> から始まるIDを入力してください
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        recover_input = st.text_input("アカウントID", placeholder="acct_xxxxxxxxxxxxxxxxxx", label_visibility="collapsed")
-        if st.button("✅ このアカウントで開く", use_container_width=True):
-            rid = recover_input.strip()
-            if rid.startswith("acct_") and len(rid) > 10:
-                st.query_params["acct"] = rid
-                st.rerun()
+            # 明示的なボタンによる発行の意思確認
+            if st.checkbox("新規にQRコードを発行して応援を受け取りますか？"):
+                if not new_pass:
+                    st.warning("パスワードを入力してください。")
+                elif "onboarding_url" not in st.session_state:
+                    if st.button("🔗 Stripeアカウントを連携する"):
+                        with st.spinner("Stripeと連携する準備をしています... (数秒かかります)"):
+                            try:
+                                # アカウント作成（ウェブサイトURLなどを事前注入）
+                                acct_id = create_connect_account()
+                                register_creator(acct_id, new_pass)
+                                st.session_state["creator_auth"] = acct_id
+                                # 登録用リンクを取得して保存
+                                st.session_state.onboarding_url = create_account_link(acct_id)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"連携エラー: {e}")
+                
+                if "onboarding_url" in st.session_state:
+                    st.markdown(f"""
+                    <div style="background: rgba(139,92,246,0.1); border: 1px solid rgba(139,92,246,0.2); border-radius: 12px; padding: 20px; text-align: center;">
+                        <div style="font-size: 24px; margin-bottom: 12px;">🌟</div>
+                        <div style="color: #f0f0f5; font-weight: 700; font-size: 16px; margin-bottom: 8px;">ステップ 1/2: Stripeで本人確認</div>
+                        <div style="font-size: 13px; color: rgba(240,240,245,0.7); margin-bottom: 20px;">
+                            下のボタンを押して、Stripeの画面で「本人確認」と「銀行口座」の設定を完了させてください。<br>
+                            完了すると自動的にここに戻ってきます。
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    st.link_button("👉 Stripeの登録画面へ進む", st.session_state.onboarding_url, type="primary")
+                    # 念のための自動リダイレクトJSも併用
+                    components.html(f'<script>window.top.location.href = "{st.session_state.onboarding_url}";</script>', height=0)
+                    if st.button("❌ キャンセルしてやり直す"):
+                        del st.session_state.onboarding_url
+                        st.rerun()
             else:
-                st.error("正しいアカウントID（acct_ から始まる文字列）を入力してください。")
+                st.warning("発行・連携を進めるには上のチェックボックスをオンにしてください。")
+
+        with tab_recover:
+            # ── 既存アカウント復元フォーム ──
+            st.markdown("""
+            <div style="background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.25);
+                        border-radius:14px;padding:16px 20px;margin-bottom:4px;">
+                <div style="font-size:13px;font-weight:700;color:rgba(240,240,245,0.85);margin-bottom:4px;">
+                    🔑 既にアカウントをお持ちの方
+                </div>
+                <div style="font-size:12px;color:rgba(240,240,245,0.5);">
+                    以前に発行したURLに含まれる <code>acct_</code> から始まるIDを入力してください
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            recover_input = st.text_input("アカウントID", placeholder="acct_xxxxxxxxxxxxxxxxxx", label_visibility="collapsed")
+            recover_pass = st.text_input("パスワード", type="password", placeholder="パスワードを入力")
+            if st.button("✅ このアカウントで開く", use_container_width=True):
+                rid = recover_input.strip()
+                if rid.startswith("acct_") and len(rid) > 10 and recover_pass:
+                    resp = get_db().table("creators").select("*").eq("acct_id", rid).execute()
+                    if not resp.data:
+                        # まだパスワードが設定されていない既存アカウントへの対応
+                        register_creator(rid, recover_pass)
+                        st.success("初期パスワードを設定しました！")
+                        st.query_params["acct"] = rid
+                        st.session_state["creator_auth"] = rid
+                        st.rerun()
+                    else:
+                        if verify_creator(rid, recover_pass):
+                            st.query_params["acct"] = rid
+                            st.session_state["creator_auth"] = rid
+                            st.rerun()
+                        else:
+                            st.error("パスワードが間違っています。")
+                else:
+                    st.error("アカウントIDとパスワードを正しく入力してください。")
     else:
+        # 認証チェック
+        if st.session_state.get("creator_auth") != acct_id:
+            st.warning("このダッシュボードを開くにはパスワードが必要です。")
+            auth_pass = st.text_input("パスワードを入力", type="password", key="auth_pass")
+            if st.button("ロックを解除", type="primary"):
+                resp = get_db().table("creators").select("*").eq("acct_id", acct_id).execute()
+                if not resp.data:
+                    # 既存ユーザーだが未パスワード設定の場合はここで初回設定扱いにする
+                    register_creator(acct_id, auth_pass)
+                    st.session_state["creator_auth"] = acct_id
+                    st.rerun()
+                elif verify_creator(acct_id, auth_pass):
+                    st.session_state["creator_auth"] = acct_id
+                    st.rerun()
+                else:
+                    st.error("パスワードが違います。")
+            st.stop()
+            
         st.markdown(f"""
         <div style="background: rgba(139,92,246,0.1); border: 1px solid rgba(139,92,246,0.2); border-radius: 12px; padding: 16px; margin-bottom: 20px;">
             <div style="color: #8b5cf6; font-weight: 700; font-size: 14px; margin-bottom: 4px;">✅ Stripe連携済み</div>
             <div style="font-size: 12px; color: rgba(240,240,245,0.6); margin-bottom: 12px;">ID: <code>{acct_id}</code></div>
-            <div style="font-size: 11px; color: #f97316; font-weight: 700; margin-bottom: 8px;">⚠️ ログイン機能はありません。このページをブックマークして保存してください！</div>
+            <div style="font-size: 11px; color: #f97316; font-weight: 700; margin-bottom: 8px;">ブラウザを閉じるとログアウトされます。必ずこのページをブックマークして保存してください！</div>
         </div>
         """, unsafe_allow_html=True)
         
@@ -858,7 +1124,15 @@ else: # Dashboard
             """, height=0)
             st.stop()
         if "qr_url" in st.session_state:
-            st.markdown(f'<div class="qr-frame"><img src="data:image/png;base64,{generate_qr_data(st.session_state.qr_url)[0]}"></div>', unsafe_allow_html=True)
+            b64_qr, qr_bytes = generate_qr_data(st.session_state.qr_url)
+            st.markdown(f'<div class="qr-frame"><img src="data:image/png;base64,{b64_qr}"></div>', unsafe_allow_html=True)
+            st.download_button(
+                label="📥 QRコード画像を保存",
+                data=qr_bytes,
+                file_name=f"oshipay_qr_{acct_id}.png",
+                mime="image/png",
+                use_container_width=True,
+            )
             st.code(st.session_state.qr_url)
     st.markdown(f'<div class="oshi-footer">Powered by <a href="{BASE_URL}?page=dashboard">OshiPay</a></div>', unsafe_allow_html=True)
     st.markdown(f'<div class="legal-links text-center pt-2"><a href="{BASE_URL}?page=terms" target="_top">利用規約</a><a href="{BASE_URL}?page=privacy" target="_top">プライバシーポリシー</a><a href="{BASE_URL}?page=legal" target="_top">特定商取引法</a></div>', unsafe_allow_html=True)
