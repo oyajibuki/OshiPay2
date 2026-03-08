@@ -142,59 +142,74 @@ def get_font(size):
         from PIL import ImageFont
         return ImageFont.load_default()
 
-def generate_coin_image(creator_name, amount, date_str, support_id, tier="bronze"):
+def generate_coin_image(creator_name, amount, date_str, support_id, rank=1, reply_tier="none"):
+    """
+    rank       : クリエイターへの何番目の応援か（1始まり）
+    reply_tier : "none" | "emoji" | "text"
+    本体色=ランク希少度、ふち色=返信ステータス
+    """
     from PIL import Image, ImageDraw
     size = 500
     img = Image.new("RGB", (size, size), "#08080f")
     draw = ImageDraw.Draw(img)
     cx, cy = size // 2, size // 2
 
-    # Tier colour palette
-    if tier == "gold":
-        c_outer = "#a07800"; c_rim = "#c8a200"; c_face = "#ffd700"; c_hi = "#fff080"
-        c_dark  = "#7a5500"; c_text = "#3d2800"; tier_label = "GOLD"; status_jp = "\u30e1\u30c3\u30bb\u30fc\u30b8\u8fd4\u4fe1\u3042\u308a"
-    elif tier == "silver":
-        c_outer = "#606060"; c_rim = "#909090"; c_face = "#c0c0c0"; c_hi = "#e8e8e8"
-        c_dark  = "#505050"; c_text = "#1a1a1a"; tier_label = "SILVER"; status_jp = "\u30b9\u30bf\u30f3\u30d7\u8fd4\u4fe1\u3042\u308a"
-    else:  # bronze
-        c_outer = "#6b3510"; c_rim = "#9a5c20"; c_face = "#cd7f32"; c_hi = "#e8a060"
-        c_dark  = "#5a2c08"; c_text = "#2a1000"; tier_label = "BRONZE"; status_jp = "\u5fdc\u63f4\u6e08\u307f"
+    # ── 本体色（ランク基準）──
+    if rank <= 9:
+        b_face="#7c3aed"; b_hi="#a78bfa"; b_dark="#4c1d95"; b_text="#ede9fe"; rank_label="FOUNDER"
+    elif rank <= 99:
+        b_face="#ffd700"; b_hi="#fff8a0"; b_dark="#a07800"; b_text="#3d2800"; rank_label="EARLY"
+    elif rank <= 999:
+        b_face="#c0c0c0"; b_hi="#e8e8e8"; b_dark="#606060"; b_text="#1a1a1a"; rank_label="SUPPORTER"
+    else:
+        b_face="#cd7f32"; b_hi="#e8a060"; b_dark="#7a3c10"; b_text="#2a1000"; rank_label="FAN"
 
-    # Coin layers (concentric circles for metallic depth)
-    draw.ellipse([cx-228, cy-228, cx+228, cy+228], fill=c_dark)    # shadow
-    draw.ellipse([cx-220, cy-220, cx+220, cy+220], fill=c_outer)   # outer rim
-    draw.ellipse([cx-208, cy-208, cx+208, cy+208], fill=c_rim)     # main rim
-    draw.ellipse([cx-195, cy-195, cx+195, cy+195], fill=c_face)    # face
-    draw.ellipse([cx-182, cy-182, cx+182, cy+182], fill=c_hi)      # highlight ring
-    draw.ellipse([cx-168, cy-168, cx+168, cy+168], fill=c_face)    # inner face
+    # ── ふち色（返信ステータス基準）──
+    if reply_tier == "text":
+        r_outer="#9a7000"; r_rim="#c8a200"   # ゴールドふち
+    elif reply_tier == "emoji":
+        r_outer="#505050"; r_rim="#909090"   # シルバーふち
+    else:
+        r_outer=b_dark;   r_rim=b_face      # ふちなし（本体同色）
 
-    font_tier  = get_font(18)
-    font_amt   = get_font(54)
-    font_name  = get_font(22)
-    font_small = get_font(15)
+    # ── 同心円コイン描画 ──
+    draw.ellipse([cx-228, cy-228, cx+228, cy+228], fill="#08080f")  # bg shadow
+    draw.ellipse([cx-220, cy-220, cx+220, cy+220], fill=r_outer)    # ふち外
+    draw.ellipse([cx-207, cy-207, cx+207, cy+207], fill=r_rim)      # ふち内
+    draw.ellipse([cx-193, cy-193, cx+193, cy+193], fill=b_dark)     # 本体暗
+    draw.ellipse([cx-180, cy-180, cx+180, cy+180], fill=b_face)     # 本体
+    draw.ellipse([cx-166, cy-166, cx+166, cy+166], fill=b_hi)       # ハイライト
+    draw.ellipse([cx-152, cy-152, cx+152, cy+152], fill=b_face)     # インナー面
 
-    # Tier badge (top of coin)
+    font_label = get_font(15)
+    font_rank  = get_font(64)   # ランク番号を最大に
+    font_amt   = get_font(34)
+    font_name  = get_font(20)
+    font_small = get_font(14)
+
+    # ランクラベルバッジ（上部）
     try:
-        draw.rounded_rectangle([cx-52, cy-148, cx+52, cy-118], radius=9, fill=c_dark)
+        draw.rounded_rectangle([cx-55, cy-148, cx+55, cy-120], radius=8, fill=b_dark)
     except AttributeError:
-        draw.rectangle([cx-52, cy-148, cx+52, cy-118], fill=c_dark)
-    draw.text((cx, cy-133), tier_label, font=font_tier, fill="#ffffff", anchor="mm")
+        draw.rectangle([cx-55, cy-148, cx+55, cy-120], fill=b_dark)
+    draw.text((cx, cy-134), rank_label, font=font_label, fill=b_hi, anchor="mm")
 
-    # Amount (large centre)
-    draw.text((cx, cy-32), f"\u00a5{amount:,}", font=font_amt, fill=c_text, anchor="mm")
+    # ランク番号（最重要・最大表示）
+    rank_str = f"#{rank:03d}" if rank <= 999 else f"#{rank}"
+    draw.text((cx, cy-50), rank_str, font=font_rank, fill=b_text, anchor="mm")
 
-    # Creator name (truncate if too long)
+    # 金額
+    draw.text((cx, cy+30), f"\u00a5{amount:,}", font=font_amt, fill=b_text, anchor="mm")
+
+    # クリエイター名
     cn = creator_name if len(creator_name) <= 14 else creator_name[:13] + "\u2026"
-    draw.text((cx, cy+32), cn, font=font_name, fill=c_text, anchor="mm")
+    draw.text((cx, cy+76), cn, font=font_name, fill=b_text, anchor="mm")
 
-    # Status label
-    draw.text((cx, cy+78), status_jp, font=font_small, fill=c_dark, anchor="mm")
-
-    # Date
-    draw.text((cx, cy+112), date_str, font=font_small, fill=c_dark, anchor="mm")
+    # 日付
+    draw.text((cx, cy+112), date_str, font=font_small, fill=b_dark, anchor="mm")
 
     # ID
-    draw.text((cx, cy+140), f"ID: {support_id[:8]}", font=font_small, fill=c_dark, anchor="mm")
+    draw.text((cx, cy+138), f"ID: {support_id[:8]}", font=font_small, fill=b_dark, anchor="mm")
 
     buf = io.BytesIO()
     img.save(buf, format="PNG")
@@ -218,12 +233,19 @@ def get_db() -> Client:
 def add_support(support_id: str, creator_acct: str, creator_name: str, amount: int, message: str, supporter_id: str = None) -> None:
     """応援記録を追加（support_idのUNIQUE制約で重複は自動無視）"""
     try:
+        # このクリエイターへの何番目の応援かを計算
+        try:
+            rank_resp = get_db().table("supports").select("id").eq("creator_acct", creator_acct).execute()
+            creator_rank = len(rank_resp.data) + 1
+        except Exception:
+            creator_rank = 1
         data = {
             "support_id": support_id,
             "creator_acct": creator_acct,
             "creator_name": creator_name,
             "amount": amount,
             "message": message,
+            "creator_rank": creator_rank,
         }
         if supporter_id:
             data["supporter_id"] = supporter_id
@@ -442,7 +464,7 @@ if page == "success":
             pass  # メール失敗はサイレントに
 
     portfolio_url = f"{BASE_URL}?page=portfolio&id={s_sup_id}" if s_sup_id else BASE_URL
-    share_text = f"{s_name}にOshiPayで応援したよ！\n{portfolio_url}\n#OshiPay2"
+    share_text = f"{s_name}にOshiPayで応援したよ！\n#OshiPay2\n{portfolio_url}"
     st.link_button("𝕏 でシェア", f"https://twitter.com/intent/tweet?text={urllib.parse.quote(share_text)}", use_container_width=True)
     st.markdown(f'<div style="text-align:center;margin-top:20px;"><a href="{BASE_URL}?page=supporter_dashboard" target="_top" style="display:inline-block; font-size:14px; font-weight:700; color:#c4b5fd; text-decoration:none; background:rgba(139,92,246,0.15); border:1px solid rgba(139,92,246,0.4); border-radius:12px; padding:10px 20px;">🦸 サポーター機能で応援を記録する</a></div>', unsafe_allow_html=True)
     st.markdown(f'<div style="text-align:center;margin-top:10px;"><a href="{BASE_URL}?page=my_history" target="_top" style="font-size:12px;color:rgba(240,240,245,0.4); text-decoration:underline;">（ブラウザ限定）簡易履歴を見る</a></div>', unsafe_allow_html=True)
@@ -465,25 +487,35 @@ if page == "my_support":
         st.warning("応援記録が見つかりません。決済直後の場合は数秒後に再読み込みしてください。")
         st.stop()
 
-    # ── コインティア判定 ──
+    # ── ランク & 返信ステータス判定 ──
+    coin_rank   = record.get("creator_rank") or 1
     has_reply_text  = bool(record.get("reply_text"))
     has_reply_emoji = bool(record.get("reply_emoji"))
-    if has_reply_text:
-        coin_tier    = "gold"
-        tier_label   = "GOLD"; tier_color = "#ffd700"; status_text = "メッセージ返信あり 💬"
-    elif has_reply_emoji:
-        coin_tier    = "silver"
-        tier_label   = "SILVER"; tier_color = "#c0c0c0"; status_text = "スタンプ返信あり ✨"
-    else:
-        coin_tier    = "bronze"
-        tier_label   = "BRONZE"; tier_color = "#cd7f32"; status_text = "応援済み 🥉"
 
+    if has_reply_text:
+        reply_tier = "text";  rim_label = "GOLD RIM";   rim_color = "#ffd700"; status_text = "メッセージ返信あり 💬"
+    elif has_reply_emoji:
+        reply_tier = "emoji"; rim_label = "SILVER RIM"; rim_color = "#c0c0c0"; status_text = "スタンプ返信あり ✨"
+    else:
+        reply_tier = "none";  rim_label = "";            rim_color = "#555";    status_text = "返信待ち 🕐"
+
+    if coin_rank <= 9:
+        rank_label = "FOUNDER"; rank_color = "#a78bfa"
+    elif coin_rank <= 99:
+        rank_label = "EARLY";   rank_color = "#ffd700"
+    elif coin_rank <= 999:
+        rank_label = "SUPPORTER"; rank_color = "#c0c0c0"
+    else:
+        rank_label = "FAN";     rank_color = "#cd7f32"
+
+    rank_str     = f"#{coin_rank:03d}" if coin_rank <= 999 else f"#{coin_rank}"
     amt_disp     = f"¥{record['amount']:,}"
     created_disp = record["created_at"][:10]
 
-    # コイン画像生成
+    # コイン画像生成（本体=ランク色、ふち=返信色）
     b64_card = generate_coin_image(
-        record['creator_name'], record['amount'], created_disp, record['support_id'], coin_tier
+        record['creator_name'], record['amount'], created_disp, record['support_id'],
+        rank=coin_rank, reply_tier=reply_tier
     )
 
     st.markdown(
@@ -518,11 +550,12 @@ if page == "my_support":
                 {amt_disp}
             </div>
         </div>
-        <div style="margin-top:14px; display:flex; align-items:center; gap:8px;">
-            <span style="display:inline-block; background:{tier_color}33; border:1px solid {tier_color}99;
-                         color:{tier_color}; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px;">
-                {tier_label}
+        <div style="margin-top:14px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <span style="background:{rank_color}22; border:1px solid {rank_color}99;
+                         color:{rank_color}; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px;">
+                {rank_label} {rank_str}
             </span>
+            {f'<span style="background:#ffd70022; border:1px solid #ffd70099; color:#ffd700; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px;">{rim_label}</span>' if rim_label else ''}
             <span style="font-size:12px; color:rgba(240,240,245,0.6);">{status_text}</span>
         </div>
         <div style="margin-top:8px; font-size:11px; color:rgba(240,240,245,0.35);">
@@ -778,6 +811,37 @@ if page == "test":
 
     st.stop()
 
+# ── 開発ナビゲーション ──
+if page == "nav":
+    st.markdown('<div class="oshi-logo"><span class="icon">🔥</span> <span class="text">OshiPay</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">🗺️ 全ページ一覧</div>', unsafe_allow_html=True)
+    st.markdown('<div style="background:rgba(249,115,22,0.12);border:1px solid rgba(249,115,22,0.4);border-radius:10px;padding:10px 14px;font-size:12px;color:#f97316;margin-bottom:24px;">⚠️ 開発確認用ページ — ダミーアカウント使用</div>', unsafe_allow_html=True)
+    _acct  = "acct_1T6mAjFIcplqHdko"
+    _sup   = "sup_ecfa46e6"
+    _sid   = "a4b5d9c5-885f-40f7-a934-fac773f51b81"
+    _qname = urllib.parse.quote("テストクリエイター")
+    def _nav_header(txt):
+        st.markdown(f'<div style="font-size:13px;font-weight:700;color:rgba(240,240,245,0.5);letter-spacing:0.08em;margin:20px 0 8px;">{txt}</div>', unsafe_allow_html=True)
+    _nav_header("🧭 サポーター導線")
+    st.link_button("🏠 LP（サービス紹介）", f"{BASE_URL}?page=lp", use_container_width=True)
+    st.link_button("🔥 応援ページ（クリエイターに投げ銭）", f"{BASE_URL}?page=support&acct={_acct}&name={_qname}&icon=%F0%9F%8E%A4", use_container_width=True)
+    st.link_button("🏅 コインページ（返信なし Bronze → 実際は FOUNDER #001）", f"{BASE_URL}?page=my_support&sid={_sid}", use_container_width=True)
+    st.link_button("📋 応援履歴（ブラウザ保存）", f"{BASE_URL}?page=my_history", use_container_width=True)
+    st.link_button("🦸 サポーターDL（ログイン: sup_ecfa46e6 / test1234）", f"{BASE_URL}?page=supporter_dashboard", use_container_width=True)
+    st.link_button("📊 ポートフォリオ（公開実績）", f"{BASE_URL}?page=portfolio&id={_sup}", use_container_width=True)
+    _nav_header("🎤 クリエイター導線")
+    st.link_button("🛠️ クリエイターDL（QRコード発行 / ログイン: acct_1T6mAjFIcplqHdko / test1234）", f"{BASE_URL}?page=dashboard", use_container_width=True)
+    st.link_button("💌 返信ダッシュボード（応援への返信）", f"{BASE_URL}?page=reply_view&acct={_acct}", use_container_width=True)
+    _nav_header("📄 法的ページ")
+    col1, col2, col3 = st.columns(3)
+    col1.link_button("利用規約", f"{BASE_URL}?page=terms", use_container_width=True)
+    col2.link_button("プライバシー", f"{BASE_URL}?page=privacy", use_container_width=True)
+    col3.link_button("特定商取引法", f"{BASE_URL}?page=legal", use_container_width=True)
+    _nav_header("🧪 開発")
+    st.link_button("テストシミュレーター（決済スキップ）", f"{BASE_URL}?page=test", use_container_width=True)
+    st.markdown('<div style="margin-top:32px;padding:16px;background:rgba(139,92,246,0.1);border:1px solid rgba(139,92,246,0.3);border-radius:12px;font-size:12px;color:rgba(240,240,245,0.6);line-height:1.8;">💡 <b style="color:#c4b5fd;">⑤ サポーターID自動入力の確認手順</b><br>① 上の「サポーターDL」でログイン（sup_ecfa46e6 / test1234）<br>② ログイン後、画面内のリンクから「応援ページ」へ遷移<br>③ サポーターIDが自動入力されているのを確認</div>', unsafe_allow_html=True)
+    st.stop()
+
 # ── 応援・ダッシュボード ──
 support_user = params.get("user", "")
 connect_acct = params.get("acct", "")
@@ -918,7 +982,7 @@ elif page == "portfolio":
         </div>
         """, unsafe_allow_html=True)
     
-    share_text = f"私のOshiPay応援実績はこちら！総額 ¥{total_amount:,}\n{BASE_URL}?page=portfolio&id={p_id}\n#OshiPay2"
+    share_text = f"私のOshiPay応援実績はこちら！総額 ¥{total_amount:,}\n#OshiPay2\n{BASE_URL}?page=portfolio&id={p_id}"
     st.link_button("𝕏 でドヤる", f"https://twitter.com/intent/tweet?text={urllib.parse.quote(share_text)}", use_container_width=True)
     st.link_button("🔥 あなたもOshiPayを始めよう", f"{BASE_URL}?page=lp", use_container_width=True)
     st.stop()
