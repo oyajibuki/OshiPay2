@@ -315,7 +315,7 @@ if page in LEGAL_MAP:
     html_content = read_html_file(LEGAL_MAP[page])
     # スクロール位置リセット用JSを注入
     html_content = inject_top_scroll_script(html_content)
-    components.html(html_content, height=2000, scrolling=True)
+    components.html(html_content, height=900, scrolling=True)
     st.stop()
 
 # ── ランディングページ ──
@@ -323,16 +323,13 @@ if page == "lp":
     lp_html = read_html_file("oshipay-lp/index.html")
     st.markdown("""
     <style>
-    /* デフォルト (PC) の高さ */
-    iframe { height: 3750px !important; border: none; }
-
     /* モバイル用の高さ調整 (幅768px以下) */
     @media (max-width: 768px) {
         iframe { height: 5800px !important; }
     }
     </style>
     """, unsafe_allow_html=True)
-    components.html(lp_html, height=5800)
+    components.html(lp_html, height=3750)
     st.markdown(f'<div style="text-align:center; padding-bottom: 40px;"><a href="{BASE_URL}?page=supporter_dashboard" target="_top" style="display:inline-block; background:rgba(139,92,246,0.15); border:1px solid rgba(139,92,246,0.5); padding:10px 20px; border-radius:12px; color:#c4b5fd; text-decoration:none; font-weight:700; font-size:14px;">🦸 過去の応援を管理する（サポーターダッシュボードへ）</a></div>', unsafe_allow_html=True)
     st.stop()
 

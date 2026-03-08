@@ -94,19 +94,7 @@
       lucide.createIcons();
     });
 
-    // iframeの高さをコンテンツに合わせて自動調整
-    function resizeParentIframe() {
-      var h = Math.max(
-        document.body.scrollHeight,
-        document.body.offsetHeight,
-        document.documentElement.scrollHeight,
-        document.documentElement.offsetHeight
-      );
-      // Streamlit component height adjustment
-      window.parent.postMessage({ isStreamlitMessage: true, type: "streamlit:setFrameHeight", height: h }, "*");
-    }
-    window.addEventListener("load", resizeParentIframe);
-    window.addEventListener("resize", resizeParentIframe);
+    // 自動リサイズは無効化（Streamlit親ページのスクロールジャンプを防止）
   </script>
 </body>
 </html>
