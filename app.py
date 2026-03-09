@@ -173,7 +173,8 @@ def generate_coin_image(creator_name, amount, date_str, support_id, rank=1, repl
 
     # ── 本体色（スコア基準）──
     if score == 6:
-        b_face="#7c3aed"; b_hi="#c4b5fd"; b_dark="#3b0764"; b_text="#ede9fe"; tier_label="LEGEND"
+        # LEGEND: 深黒ボディ + レインボーリム（金テキスト）
+        b_face="#1a0530"; b_hi="#3d0f7a"; b_dark="#0d0320"; b_text="#ffd700"; tier_label="LEGEND"
     elif score == 5:
         b_face="#0ea5e9"; b_hi="#7dd3fc"; b_dark="#0369a1"; b_text="#e0f2fe"; tier_label="DIAMOND"
     elif score >= 4:
@@ -193,9 +194,27 @@ def generate_coin_image(creator_name, amount, date_str, support_id, rank=1, repl
 
     # ── 同心円コイン描画 ──
     draw.ellipse([cx-228, cy-228, cx+228, cy+228], fill="#08080f")  # bg shadow
-    draw.ellipse([cx-220, cy-220, cx+220, cy+220], fill=r_outer)    # ふち外
-    draw.ellipse([cx-207, cy-207, cx+207, cy+207], fill=r_rim)      # ふち内
-    draw.ellipse([cx-193, cy-193, cx+193, cy+193], fill=b_dark)     # 本体暗
+
+    if tier_label == "LEGEND":
+        # レインボーリム: 7色の扇形で360°を埋める
+        rainbow_colors = [
+            "#ff0040", "#ff6600", "#ffd700",
+            "#00cc44", "#0099ff", "#7744ff", "#ff44cc"
+        ]
+        n = len(rainbow_colors)
+        seg = 360.0 / n
+        for i, rc in enumerate(rainbow_colors):
+            draw.pieslice(
+                [cx-220, cy-220, cx+220, cy+220],
+                start=i * seg - 1, end=(i + 1) * seg + 1,
+                fill=rc
+            )
+        draw.ellipse([cx-193, cy-193, cx+193, cy+193], fill=b_dark)  # 中央を本体暗で覆う
+    else:
+        draw.ellipse([cx-220, cy-220, cx+220, cy+220], fill=r_outer)  # ふち外
+        draw.ellipse([cx-207, cy-207, cx+207, cy+207], fill=r_rim)    # ふち内
+        draw.ellipse([cx-193, cy-193, cx+193, cy+193], fill=b_dark)   # 本体暗
+
     draw.ellipse([cx-180, cy-180, cx+180, cy+180], fill=b_face)     # 本体
     draw.ellipse([cx-166, cy-166, cx+166, cy+166], fill=b_hi)       # ハイライト
     draw.ellipse([cx-152, cy-152, cx+152, cy+152], fill=b_face)     # インナー面
@@ -529,7 +548,7 @@ if page == "my_support":
     score = rank_pts + amount_pts
 
     if score == 6:
-        tier_label = "LEGEND";  tier_color = "#a78bfa"
+        tier_label = "LEGEND";  tier_color = "#ffd700"   # レインボーコインなのでゴールド表示
     elif score == 5:
         tier_label = "DIAMOND"; tier_color = "#7dd3fc"
     elif score >= 4:
@@ -616,8 +635,19 @@ if page == "reply_view":
         st.stop()
 
     # ── パスワード認証 ──
+    # rv_acct は URL の acct= パラメーターから取得済みのため、
+    # verify_creator(rv_acct, pw) は「このURLのクリエイター専用」の認証になります。
     if st.session_state.get("reply_auth") != rv_acct:
-        st.markdown('<div class="section-subtitle">クリエイターダッシュボードのパスワードを入力してください</div>', unsafe_allow_html=True)
+        st.markdown(f"""
+        <div style="background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.25);
+                    border-radius:14px;padding:16px 20px;margin-bottom:16px;">
+            <div style="font-size:12px;color:rgba(240,240,245,0.5);margin-bottom:4px;">ログイン対象のクリエイターID</div>
+            <div style="font-family:monospace;font-size:14px;color:#c4b5fd;font-weight:700;">{rv_acct}</div>
+            <div style="font-size:11px;color:rgba(240,240,245,0.35);margin-top:6px;">
+                ※ このIDはURLに含まれています。別のIDのDLを開くには、そのクリエイターのURLから開いてください。
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
         rv_pass = st.text_input("パスワード", type="password", key="rv_pass", value="test1234")
         if st.button("🔓 ロックを解除", type="primary", use_container_width=True):
             if verify_creator(rv_acct, rv_pass):
