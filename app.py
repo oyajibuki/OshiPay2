@@ -668,7 +668,8 @@ if page == "my_support":
     )
     st.markdown(card_html, unsafe_allow_html=True)
 
-    st.markdown(f'<div class="oshi-footer" style="margin-top:28px;">Powered by <a href="{BASE_URL}?page=dashboard">OshiPay2</a></div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="text-align:center;margin-top:16px;"><a href="{BASE_URL}?page=coin_preview" target="_top" style="font-size:11px;color:rgba(240,240,245,0.3);text-decoration:underline;">🪙 コイン全色プレビューを見る</a></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="oshi-footer" style="margin-top:12px;">Powered by <a href="{BASE_URL}?page=dashboard">OshiPay2</a></div>', unsafe_allow_html=True)
     st.markdown(f'<div class="legal-links text-center pt-2"><a href="{BASE_URL}?page=terms" target="_top">利用規約</a><a href="{BASE_URL}?page=privacy" target="_top">プライバシーポリシー</a><a href="{BASE_URL}?page=legal" target="_top">特定商取引法</a></div>', unsafe_allow_html=True)
     st.stop()
 
@@ -761,24 +762,27 @@ if page == "reply_view":
 
         # 返信フォーム (Streamlit ウィジェット)
         with st.expander("📝 返信する" if not has_reply else "✏️ 返信を編集", expanded=False):
-            cols = st.columns(len(REPLY_EMOJIS))
-            selected_emoji_key = f"emoji_{sid}"
-            if selected_emoji_key not in st.session_state:
-                st.session_state[selected_emoji_key] = record.get("reply_emoji") or REPLY_EMOJIS[0]
+            # 絵文字 & テキストをセッション初期化（value=渡しによる毎rerunリセットを防ぐ）
+            emoji_key = f"emoji_{sid}"
+            txt_key   = f"rtxt_{sid}"
+            if emoji_key not in st.session_state:
+                st.session_state[emoji_key] = record.get("reply_emoji") or REPLY_EMOJIS[0]
+            if txt_key not in st.session_state:
+                st.session_state[txt_key] = record.get("reply_text") or ""
 
+            cols = st.columns(len(REPLY_EMOJIS))
             for ci, em in enumerate(REPLY_EMOJIS):
                 if cols[ci].button(em, key=f"em_{sid}_{ci}"):
-                    st.session_state[selected_emoji_key] = em
+                    st.session_state[emoji_key] = em
                     st.rerun()
 
-            chosen_emoji = st.session_state[selected_emoji_key]
+            chosen_emoji = st.session_state[emoji_key]
             st.markdown(f'<div style="text-align:center;font-size:36px;margin:8px 0;">{chosen_emoji}</div>', unsafe_allow_html=True)
 
             reply_text = st.text_area(
                 "メッセージ（任意）",
-                value=record.get("reply_text") or "",
                 max_chars=200,
-                key=f"rtxt_{sid}",
+                key=txt_key,
                 placeholder="ありがとう！いつも応援してくれて嬉しいです 😊",
             )
 
@@ -1340,7 +1344,7 @@ else: # Dashboard
             new_pass = st.text_input("管理用パスワードを作成", type="password", key="new_pass")
 
             # 明示的なボタンによる発行の意思確認
-            if st.checkbox("新規にQRコードを発行して応援を受け取りますか？"):
+            if st.checkbox("利用規約に同意して、新規にQRコードを発行して応援を受け取りますか？"):
                 if not new_pass:
                     st.warning("パスワードを入力してください。")
                 elif "onboarding_url" not in st.session_state:
@@ -1475,7 +1479,8 @@ else: # Dashboard
             st.stop()
         if "qr_url" in st.session_state:
             b64_qr, qr_bytes = generate_qr_data(st.session_state.qr_url)
-            info_txt = f"クリエイターID: {acct_id}\n応援URL: {st.session_state.qr_url}"
+            reply_dash_url = f"{BASE_URL}?page=reply_view&acct={acct_id}"
+            info_txt = f"クリエイターID: {acct_id}\n応援URL: {st.session_state.qr_url}\n返信ダッシュボード: {reply_dash_url}"
             # QR画像とURLを表示
             st.markdown(f'<div class="qr-frame"><img src="data:image/png;base64,{b64_qr}"></div>', unsafe_allow_html=True)
             st.code(st.session_state.qr_url)
