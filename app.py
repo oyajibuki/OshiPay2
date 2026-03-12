@@ -404,6 +404,13 @@ st.markdown("""
 .oshi-divider { height: 1px; background: rgba(255,255,255,0.08); margin: 20px 0; }
 .qr-frame { background: white; padding: 16px; border-radius: 20px; display: inline-block; margin: 0 auto; }
 </style>
+<script>
+// target="_top" リンクをStreamlitのiframe越しに確実に動かす
+document.addEventListener('click', function(e) {
+    var a = e.target.closest('a[target="_top"]');
+    if (a && a.href) { e.preventDefault(); window.top.location.href = a.href; }
+}, true);
+</script>
 """, unsafe_allow_html=True)
 
 # ── ルーティング ──
@@ -1307,9 +1314,9 @@ elif page == "supporter_dashboard":
                 st.error("応援記録が見つかりません。入力内容を確認してください。")
                 
     st.markdown('<div class="oshi-divider"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="header" style="font-size:16px;">📊 ポートフォリオでドヤる</div>', unsafe_allow_html=True)
+    st.markdown('<div class="header" style="font-size:16px;">📊 応援実績をシェアする</div>', unsafe_allow_html=True)
     portfolio_url = f"{BASE_URL}?page=portfolio&id={sup_user['supporter_id']}"
-    st.link_button("🌐 公開用ポートフォリオ画面を見る", portfolio_url, use_container_width=True)
+    st.link_button("🌐 応援実績ページを見る（公開用）", portfolio_url, use_container_width=True)
     st.code(portfolio_url, language="text")
     
     st.markdown('<div class="oshi-divider"></div>', unsafe_allow_html=True)
