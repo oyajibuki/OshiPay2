@@ -1234,7 +1234,7 @@ elif page == "portfolio":
         """, unsafe_allow_html=True)
     
     share_text = f"私のOshiPay応援実績はこちら！総額 ¥{total_amount:,}\n#OshiPay2\n{BASE_URL}?page=portfolio&id={p_id}"
-    st.link_button("𝕏 でドヤる", f"https://twitter.com/intent/tweet?text={urllib.parse.quote(share_text)}", use_container_width=True)
+    st.link_button("𝕏 で公開する", f"https://twitter.com/intent/tweet?text={urllib.parse.quote(share_text)}", use_container_width=True)
     st.link_button("🔥 あなたもOshiPay2を始めよう", f"{BASE_URL}?page=lp", use_container_width=True)
     st.stop()
 
@@ -1244,7 +1244,7 @@ elif page == "supporter_dashboard":
     st.markdown('<div class="section-title">サポーター・ダッシュボード</div>', unsafe_allow_html=True)
     
     if "supporter_auth" not in st.session_state:
-        st.info("過去の応援を一つにまとめたり、ドヤるための公開ポートフォリオを作成できます。")
+        st.info("過去の応援を一つにまとめた、公開ポートフォリオを作成できます。")
         tab_login, tab_register = st.tabs(["🔑 ログイン", "✨ 新規アカウント作成"])
         
         with tab_login:
