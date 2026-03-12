@@ -472,7 +472,8 @@ if page == "success":
     s_acct = params.get("s_acct", "")
     s_msg = params.get("s_msg", "")
     s_sid = params.get("s_sid", "")
-    s_sup_id = params.get("s_sup_id", "")
+    s_sup_id   = params.get("s_sup_id", "")
+    s_sup_name = params.get("s_sup_name", "")
 
     # ── 応援金額のパース ──
     try:
@@ -480,12 +481,26 @@ if page == "success":
     except ValueError:
         s_amt = 0
 
+    # ── 名前入力からの軽量サポーターレコード作成 ──
+    if s_sup_id and s_sup_name:
+        try:
+            get_db().table("supporters").insert(
+                {"supporter_id": s_sup_id, "display_name": s_sup_name}
+            ).execute()
+        except Exception:
+            pass  # UNIQUE制約違反（リロード時の重複）は無視
+
     # ── 応援記録を Supabase に保存（冪等: s_sid があれば1回のみ） ──
     if s_sid and s_acct and s_amt > 0:
         add_support(s_sid, s_acct, s_name, s_amt, s_msg, s_sup_id)
 
-    # ── support_id を localStorage の履歴に追記 ──
+    # ── support_id を localStorage の履歴に追記 ＋ 名前・IDを保存 ──
     if s_sid:
+        _save_name_js = ""
+        if s_sup_id and s_sup_name:
+            _safe_sup_id   = s_sup_id.replace("'", "")
+            _safe_sup_name = s_sup_name.replace("'", "").replace("\\", "")
+            _save_name_js  = f"localStorage.setItem('oshipay_supporter_id', '{_safe_sup_id}'); localStorage.setItem('oshipay_display_name', '{_safe_sup_name}');"
         components.html(f"""
         <script>
         try {{
@@ -495,6 +510,7 @@ if page == "success":
                 if (h.length > 50) h = h.slice(0, 50);
                 localStorage.setItem('oshipay_history', JSON.stringify(h));
             }}
+            {_save_name_js}
         }} catch(e) {{}}
         </script>
         """, height=0)
@@ -1072,7 +1088,11 @@ if page == "support" and support_user:
 
     st.markdown(f'<div class="selected-amount-display">¥{int(st.session_state.amt):,}</div>', unsafe_allow_html=True)
     msg = st.text_area("応援メッセージ（オプション）", max_chars=140)
-    
+
+    st.markdown('<div class="section-subtitle" style="text-align:left;margin-bottom:4px;">👤 お名前（任意）</div><div style="font-size:11px;color:rgba(240,240,245,0.5);margin-bottom:8px;">入力するとランキングにお名前が表示されます</div>', unsafe_allow_html=True)
+    _default_name = st.session_state.get("supporter_auth", {}).get("display_name", "")
+    sup_display_name = st.text_input("お名前", value=_default_name, placeholder="例: たろう", label_visibility="collapsed")
+
     # ボタンの無効化処理を追加
     is_disabled = st.session_state.amt < 100
     if is_disabled:
@@ -1106,11 +1126,13 @@ if page == "support" and support_user:
     if st.button("🔥 応援する！", disabled=is_disabled):
         amt = st.session_state.amt
         support_id = str(uuid.uuid4())  # 応援証明用ユニークID
+        # 名前入力ありでsup_idなし → 自動生成
+        final_sup_id = opt_sup_id or ("sup_" + uuid.uuid4().hex[:8] if sup_display_name else "")
         try:
             checkout_params = {
                 "payment_method_types": ["card"], "mode": "payment",
                 "line_items": [{"price_data": {"currency": "jpy", "product_data": {"name": f"{support_name}への応援"}, "unit_amount": amt}, "quantity": 1}],
-                "success_url": f"{BASE_URL}?page=success&s_name={urllib.parse.quote(support_name)}&s_amt={amt}&s_acct={connect_acct}&s_msg={urllib.parse.quote(msg or '')}&s_sid={support_id}&s_sup_id={opt_sup_id}",
+                "success_url": f"{BASE_URL}?page=success&s_name={urllib.parse.quote(support_name)}&s_amt={amt}&s_acct={connect_acct}&s_msg={urllib.parse.quote(msg or '')}&s_sid={support_id}&s_sup_id={final_sup_id}&s_sup_name={urllib.parse.quote(sup_display_name or '')}",
                 "cancel_url": f"{BASE_URL}?page=cancel",
                 "metadata": {"user_id": support_user, "message": msg, "support_id": support_id, "supporter_id": opt_sup_id}
             }
