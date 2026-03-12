@@ -465,7 +465,15 @@ if page == "lp":
     </style>
     """, unsafe_allow_html=True)
     components.html(lp_html, height=3750)
-    st.markdown(f'<div style="text-align:center; padding-bottom: 40px;"><a href="{BASE_URL}?page=supporter_dashboard" target="_top" style="display:inline-block; background:rgba(139,92,246,0.15); border:1px solid rgba(139,92,246,0.5); padding:10px 20px; border-radius:12px; color:#c4b5fd; text-decoration:none; font-weight:700; font-size:14px;">🦸 過去の応援を管理する（サポーターダッシュボードへ）</a></div>', unsafe_allow_html=True)
+    lp_bottom_html = (
+        f'<div style="text-align:center;padding:16px 0 8px;">'
+        f'<a href="{BASE_URL}?page=ranking" target="_top" style="display:inline-block;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.5);padding:10px 24px;border-radius:12px;color:#fbbf24;text-decoration:none;font-weight:700;font-size:14px;">🏆 月間応援ランキングを見る</a>'
+        f'</div>'
+        f'<div style="text-align:center;padding-bottom:40px;">'
+        f'<a href="{BASE_URL}?page=supporter_dashboard" target="_top" style="display:inline-block;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.5);padding:10px 20px;border-radius:12px;color:#c4b5fd;text-decoration:none;font-weight:700;font-size:14px;">🦸 過去の応援を管理する（サポーターダッシュボードへ）</a>'
+        f'</div>'
+    )
+    st.markdown(lp_bottom_html, unsafe_allow_html=True)
     st.stop()
 
 # ── 成功ページ ──
@@ -640,35 +648,25 @@ if page == "my_support":
     )
 
     # ── ステータスカード（内容は非表示・ステータスのみ）──
-    st.markdown(f"""
-    <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
-                border-radius: 16px; padding: 20px; margin: 16px 0;">
-        <div style="display:flex; align-items:center; gap:12px;">
-            <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#8b5cf6,#ec4899,#f97316);
-                        display:flex;align-items:center;justify-content:center;font-size:20px;">🔥</div>
-            <div style="flex:1;">
-                <div style="color:#f0f0f5;font-weight:700;font-size:16px;">{record['creator_name']}</div>
-                <div style="color:rgba(240,240,245,0.5);font-size:12px;">{created_disp} に応援</div>
-            </div>
-            <div style="font-size:22px;font-weight:900;
-                        background:linear-gradient(135deg,#8b5cf6,#ec4899,#f97316);
-                        -webkit-background-clip:text;-webkit-text-fill-color:transparent;">
-                {amt_disp}
-            </div>
-        </div>
-        <div style="margin-top:14px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-            <span style="background:{tier_color}22; border:1px solid {tier_color}99;
-                         color:{tier_color}; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px;">
-                {tier_label} {rank_str}
-            </span>
-            {rim_badge_html}
-            <span style="font-size:12px; color:rgba(240,240,245,0.6);">{status_text}</span>
-        </div>
-        <div style="margin-top:8px; font-size:11px; color:rgba(240,240,245,0.35);">
-            応援ID: {record['support_id'][:8]}
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    card_html = (
+        f'<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:20px;margin:16px 0;">'
+        f'<div style="display:flex;align-items:center;gap:12px;">'
+        f'<div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#8b5cf6,#ec4899,#f97316);display:flex;align-items:center;justify-content:center;font-size:20px;">🔥</div>'
+        f'<div style="flex:1;">'
+        f'<div style="color:#f0f0f5;font-weight:700;font-size:16px;">{record["creator_name"]}</div>'
+        f'<div style="color:rgba(240,240,245,0.5);font-size:12px;">{created_disp} に応援</div>'
+        f'</div>'
+        f'<div style="font-size:22px;font-weight:900;background:linear-gradient(135deg,#8b5cf6,#ec4899,#f97316);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">{amt_disp}</div>'
+        f'</div>'
+        f'<div style="margin-top:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
+        f'<span style="background:{tier_color}22;border:1px solid {tier_color}99;color:{tier_color};font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;">{tier_label} {rank_str}</span>'
+        f'{rim_badge_html}'
+        f'<span style="font-size:12px;color:rgba(240,240,245,0.6);">{status_text}</span>'
+        f'</div>'
+        f'<div style="margin-top:8px;font-size:11px;color:rgba(240,240,245,0.35);">応援ID: {record["support_id"][:8]}</div>'
+        f'</div>'
+    )
+    st.markdown(card_html, unsafe_allow_html=True)
 
     st.markdown(f'<div class="oshi-footer" style="margin-top:28px;">Powered by <a href="{BASE_URL}?page=dashboard">OshiPay2</a></div>', unsafe_allow_html=True)
     st.markdown(f'<div class="legal-links text-center pt-2"><a href="{BASE_URL}?page=terms" target="_top">利用規約</a><a href="{BASE_URL}?page=privacy" target="_top">プライバシーポリシー</a><a href="{BASE_URL}?page=legal" target="_top">特定商取引法</a></div>', unsafe_allow_html=True)
@@ -1477,29 +1475,25 @@ else: # Dashboard
             st.stop()
         if "qr_url" in st.session_state:
             b64_qr, qr_bytes = generate_qr_data(st.session_state.qr_url)
-            # 生成直後のみ自動DL（PNG + テキスト）
-            if st.session_state.get("qr_just_generated"):
-                st.session_state.qr_just_generated = False
-                info_txt = f"クリエイターID: {acct_id}\n応援URL: {st.session_state.qr_url}"
-                import urllib.parse as _up
-                encoded_txt = _up.quote(info_txt)
-                components.html(f"""<script>
-(function(){{
-    var a = document.createElement('a');
-    a.href = 'data:image/png;base64,{b64_qr}';
-    a.download = 'oshipay2_qr_{acct_id}.png';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(function(){{
-        var b = document.createElement('a');
-        b.href = 'data:text/plain;charset=utf-8,{encoded_txt}';
-        b.download = 'oshipay2_info_{acct_id}.txt';
-        document.body.appendChild(b); b.click(); document.body.removeChild(b);
-    }}, 600);
-}})();
-</script>""", height=0)
-                st.success("✅ QRコード（PNG）とID/URL（テキスト）を自動保存しました")
-            # 常にQR画像とURLを表示
+            info_txt = f"クリエイターID: {acct_id}\n応援URL: {st.session_state.qr_url}"
+            # QR画像とURLを表示
             st.markdown(f'<div class="qr-frame"><img src="data:image/png;base64,{b64_qr}"></div>', unsafe_allow_html=True)
             st.code(st.session_state.qr_url)
+            # DLボタン2つ（PNG / テキスト）
+            dl_col1, dl_col2 = st.columns(2)
+            dl_col1.download_button(
+                label="📥 QR画像を保存（PNG）",
+                data=qr_bytes,
+                file_name=f"oshipay2_qr_{acct_id}.png",
+                mime="image/png",
+                use_container_width=True,
+            )
+            dl_col2.download_button(
+                label="📄 ID/URLをテキスト保存",
+                data=info_txt.encode("utf-8"),
+                file_name=f"oshipay2_info_{acct_id}.txt",
+                mime="text/plain",
+                use_container_width=True,
+            )
     st.markdown(f'<div class="oshi-footer">Powered by <a href="{BASE_URL}?page=dashboard">OshiPay2</a></div>', unsafe_allow_html=True)
     st.markdown(f'<div class="legal-links text-center pt-2"><a href="{BASE_URL}?page=terms" target="_top">利用規約</a><a href="{BASE_URL}?page=privacy" target="_top">プライバシーポリシー</a><a href="{BASE_URL}?page=legal" target="_top">特定商取引法</a></div>', unsafe_allow_html=True)
