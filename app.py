@@ -158,7 +158,7 @@ def generate_coin_image(creator_name, amount, date_str, support_id, rank=1, repl
       6=LEGEND(紫), 5=DIAMOND(青), 4=GOLD(金), 2-3=SILVER(銀), 0-1=BRONZE(銅)
 
     ■ ふち色（reply_tier基準）
-      text=ゴールドふち, emoji=シルバーふち, none=本体同色
+      text=ダイアモンドふち, emoji=ゴールドふち, none=ふちなし
     """
     from PIL import Image, ImageDraw
     size = 500
@@ -176,21 +176,21 @@ def generate_coin_image(creator_name, amount, date_str, support_id, rank=1, repl
         # LEGEND: 深黒ボディ + レインボーリム（金テキスト）
         b_face="#1a0530"; b_hi="#3d0f7a"; b_dark="#0d0320"; b_text="#ffd700"; tier_label="LEGEND"
     elif score == 5:
-        b_face="#0ea5e9"; b_hi="#7dd3fc"; b_dark="#0369a1"; b_text="#e0f2fe"; tier_label="DIAMOND"
+        b_face="#a8d4ec"; b_hi="#e4f4fc"; b_dark="#4a8aaa"; b_text="#0d2030"; tier_label="DIAMOND"
     elif score >= 4:
         b_face="#ffd700"; b_hi="#fff8a0"; b_dark="#a07800"; b_text="#3d2800"; tier_label="GOLD"
     elif score >= 2:
         b_face="#c0c0c0"; b_hi="#e8e8e8"; b_dark="#606060"; b_text="#1a1a1a"; tier_label="SILVER"
     else:
-        b_face="#cd7f32"; b_hi="#e8a060"; b_dark="#7a3c10"; b_text="#2a1000"; tier_label="BRONZE"
+        b_face="#6B3A12"; b_hi="#C87830"; b_dark="#3C1A06"; b_text="#f0c080"; tier_label="BRONZE"
 
     # ── ふち色（返信ステータス基準）──
     if reply_tier == "text":
-        r_outer="#9a7000"; r_rim="#c8a200"   # ゴールドふち
+        r_outer="#4a8aaa"; r_rim="#e4f4fc"   # ダイアモンドふち
     elif reply_tier == "emoji":
-        r_outer="#505050"; r_rim="#909090"   # シルバーふち
+        r_outer="#9a7000"; r_rim="#c8a200"   # ゴールドふち
     else:
-        r_outer=b_dark;   r_rim=b_face      # ふちなし（本体同色）
+        r_outer="#505050"; r_rim="#909090"   # シルバーふち（返信なし）
 
     # ── 同心円コイン描画 ──
     draw.ellipse([cx-228, cy-228, cx+228, cy+228], fill="#08080f")  # bg shadow
@@ -372,10 +372,10 @@ def get_supporters_map(supporter_ids: list) -> dict:
 def get_tier_badge(amount: int) -> tuple:
     """金額からコインティアバッジ情報を返す (label, color, bg_color)"""
     if amount >= 100000: return ("🌈 LEGEND",  "#ffd700", "rgba(26,5,48,0.9)")
-    if amount >= 10000:  return ("💎 DIAMOND", "#7dd3fc", "rgba(14,165,233,0.2)")
+    if amount >= 10000:  return ("💎 DIAMOND", "#a8d4ec", "rgba(168,212,236,0.2)")
     if amount >= 1000:   return ("🥇 GOLD",    "#fbbf24", "rgba(245,158,11,0.2)")
     if amount >= 500:    return ("🥈 SILVER",  "#94a3b8", "rgba(148,163,184,0.15)")
-    return                      ("🟤 BRONZE",  "#b45309", "rgba(180,83,9,0.15)")
+    return                      ("🟤 BRONZE",  "#A06830", "rgba(123,74,30,0.2)")
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # スタイル & UIパーツ
@@ -593,13 +593,13 @@ if page == "my_support":
     if score == 6:
         tier_label = "LEGEND";  tier_color = "#ffd700"   # レインボーコインなのでゴールド表示
     elif score == 5:
-        tier_label = "DIAMOND"; tier_color = "#7dd3fc"
+        tier_label = "DIAMOND"; tier_color = "#a8d4ec"
     elif score >= 4:
         tier_label = "GOLD";    tier_color = "#ffd700"
     elif score >= 2:
         tier_label = "SILVER";  tier_color = "#c0c0c0"
     else:
-        tier_label = "BRONZE";  tier_color = "#cd7f32"
+        tier_label = "BRONZE";  tier_color = "#A06830"
 
     rank_str     = f"#{coin_rank:03d}" if coin_rank <= 999 else f"#{coin_rank}"
     amt_disp     = f"¥{record['amount']:,}"
@@ -1013,6 +1013,36 @@ if page == "ranking":
         f'</div>'
     )
     st.markdown(footer_html, unsafe_allow_html=True)
+    st.stop()
+
+# ── コインプレビュー（開発用）──
+if page == "coin_preview":
+    st.markdown('<div class="section-title">🪙 コイン全色プレビュー</div>', unsafe_allow_html=True)
+    st.markdown("**ティア一覧（返信なし）**")
+    tier_cases = [
+        ("🌈 LEGEND",  100000, 1,  "none"),
+        ("💎 DIAMOND",  10000, 1,  "none"),
+        ("🥇 GOLD",      1000, 1,  "none"),
+        ("🥈 SILVER",     500,  50,   "none"),
+        ("🟤 BRONZE",     100,  1000, "none"),
+    ]
+    cols = st.columns(5)
+    for col, (label, amt, rank, rim) in zip(cols, tier_cases):
+        b64 = generate_coin_image("テストクリエイター", amt, "2026-03", "abc12345", rank=rank, reply_tier=rim)
+        col.markdown(f'<div style="text-align:center;font-size:12px;margin-bottom:4px;">{label}</div>', unsafe_allow_html=True)
+        col.markdown(f'<img src="data:image/png;base64,{b64}" style="width:100%;border-radius:50%;">', unsafe_allow_html=True)
+    st.markdown("---")
+    st.markdown("**ふちバリエーション（GOLDで確認）**")
+    rim_cases = [
+        ("シルバーふち（返信なし）",        1000, 1, "none"),
+        ("ゴールドふち（絵文字あり）",     1000, 1, "emoji"),
+        ("ダイアモンドふち（返信あり）",   1000, 1, "text"),
+    ]
+    cols2 = st.columns(3)
+    for col, (label, amt, rank, rim) in zip(cols2, rim_cases):
+        b64 = generate_coin_image("テストクリエイター", amt, "2026-03", "abc12345", rank=rank, reply_tier=rim)
+        col.markdown(f'<div style="text-align:center;font-size:12px;margin-bottom:4px;">{label}</div>', unsafe_allow_html=True)
+        col.markdown(f'<img src="data:image/png;base64,{b64}" style="width:100%;border-radius:50%;">', unsafe_allow_html=True)
     st.stop()
 
 # ── 開発ナビゲーション ──
