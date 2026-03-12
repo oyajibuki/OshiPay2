@@ -350,6 +350,33 @@ def delete_all_supports() -> None:
     """テストページ用: 全データ削除"""
     get_db().table("supports").delete().neq("support_id", "").execute()
 
+def get_monthly_ranking() -> list:
+    """月間ランキング用: 当月のsupportsを全取得"""
+    now = datetime.datetime.now(datetime.timezone.utc)
+    start = datetime.datetime(now.year, now.month, 1, tzinfo=datetime.timezone.utc).isoformat()
+    resp = get_db().table("supports").select("*").gte("created_at", start).execute()
+    return resp.data or []
+
+def get_supporters_map(supporter_ids: list) -> dict:
+    """supporter_id リストから {supporter_id: display_name} マップを返す"""
+    if not supporter_ids:
+        return {}
+    resp = (
+        get_db().table("supporters")
+        .select("supporter_id,display_name")
+        .in_("supporter_id", supporter_ids)
+        .execute()
+    )
+    return {r["supporter_id"]: r["display_name"] for r in (resp.data or [])}
+
+def get_tier_badge(amount: int) -> tuple:
+    """金額からコインティアバッジ情報を返す (label, color, bg_color)"""
+    if amount >= 100000: return ("🌈 LEGEND",  "#ffd700", "rgba(26,5,48,0.9)")
+    if amount >= 10000:  return ("💎 DIAMOND", "#7dd3fc", "rgba(14,165,233,0.2)")
+    if amount >= 1000:   return ("🥇 GOLD",    "#fbbf24", "rgba(245,158,11,0.2)")
+    if amount >= 500:    return ("🥈 SILVER",  "#94a3b8", "rgba(148,163,184,0.15)")
+    return                      ("🟤 BRONZE",  "#b45309", "rgba(180,83,9,0.15)")
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # スタイル & UIパーツ
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -400,7 +427,7 @@ if page == "lp":
     st.markdown("<style>.stMainBlockContainer, .block-container { max-width: none !important; padding: 0 !important; margin: 0 !important; }</style>", unsafe_allow_html=True)
 elif IS_LEGAL_PAGE:
     st.markdown("<style>.stMainBlockContainer, .block-container { max-width: 800px !important; margin: 0 auto; }</style>", unsafe_allow_html=True)
-elif page == "reply_view":
+elif page in ["reply_view", "ranking"]:
     st.markdown("<style>.stMainBlockContainer, .block-container { max-width: 700px !important; margin: 0 auto; }</style>", unsafe_allow_html=True)
 else:
     st.markdown("<style>.stMainBlockContainer, .block-container { max-width: 460px !important; margin: 0 auto; }</style>", unsafe_allow_html=True)
@@ -890,6 +917,88 @@ if page == "test":
 
     st.stop()
 
+# ── 月間ランキング ──
+if page == "ranking":
+    now = datetime.datetime.now(datetime.timezone.utc)
+    month_label = f"{now.year}年{now.month}月"
+
+    st.markdown('<div class="oshi-logo"><span class="icon">🔥</span> <span class="text">OshiPay</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">🏆 月間応援ランキング</div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="text-align:center;color:rgba(240,240,245,0.5);font-size:13px;margin-bottom:28px;">{month_label}</div>', unsafe_allow_html=True)
+
+    all_supports = get_monthly_ranking()
+
+    if not all_supports:
+        st.markdown('<div style="text-align:center;padding:60px 20px;color:rgba(255,255,255,0.35);font-size:14px;">まだ今月の応援データがありません 🌱</div>', unsafe_allow_html=True)
+    else:
+        # クリエイター別に集計
+        creator_map = {}
+        for s in all_supports:
+            acct = s["creator_acct"]
+            if acct not in creator_map:
+                creator_map[acct] = {"name": s["creator_name"], "acct": acct, "total": 0, "supports": []}
+            creator_map[acct]["total"] += s["amount"]
+            creator_map[acct]["supports"].append(s)
+
+        ranked = sorted(creator_map.values(), key=lambda x: x["total"], reverse=True)
+
+        # サポーター名マップを一括取得
+        all_sup_ids = list({s["supporter_id"] for c in ranked for s in c["supports"] if s.get("supporter_id")})
+        sup_name_map = get_supporters_map(all_sup_ids)
+
+        rank_medals = ["🥇", "🥈", "🥉"]
+
+        for i, creator in enumerate(ranked):
+            medal = rank_medals[i] if i < 3 else f"{i + 1}位"
+            creator_url = f"{BASE_URL}?page=support&user={creator['acct']}&acct={creator['acct']}&name={urllib.parse.quote(creator['name'])}&icon=%F0%9F%94%A5"
+            top3 = sorted(creator["supports"], key=lambda x: x["amount"], reverse=True)[:3]
+
+            sup_rows_html = ""
+            for j, sup in enumerate(top3):
+                amt = sup["amount"]
+                tier_label, tier_color, tier_bg = get_tier_badge(amt)
+                sup_id = sup.get("supporter_id")
+                sup_name = sup_name_map.get(sup_id, "（匿名）") if sup_id else "（匿名）"
+                row_medal = ["🥇", "🥈", "🥉"][j]
+                if sup_id:
+                    port_url = f"{BASE_URL}?page=portfolio&id={sup_id}"
+                    name_html = f'<a href="{port_url}" target="_top" style="color:{tier_color};text-decoration:none;font-weight:700;">{sup_name}</a>'
+                else:
+                    name_html = f'<span style="color:rgba(255,255,255,0.45);">{sup_name}</span>'
+                row_div = (
+                    f'<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.05);">'
+                    f'<span style="font-size:15px;min-width:22px;">{row_medal}</span>'
+                    f'<span style="flex:1;font-size:13px;">{name_html}</span>'
+                    f'<span style="font-size:11px;padding:2px 9px;border-radius:20px;background:{tier_bg};color:{tier_color};border:1px solid {tier_color};white-space:nowrap;">{tier_label}</span>'
+                    f'<span style="font-size:13px;font-weight:700;color:rgba(255,255,255,0.9);white-space:nowrap;margin-left:8px;">¥{amt:,}</span>'
+                    f'</div>'
+                )
+                sup_rows_html += row_div
+
+            card_html = (
+                f'<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:16px 20px;margin-bottom:12px;">'
+                f'<div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">'
+                f'<span style="font-size:26px;min-width:32px;">{medal}</span>'
+                f'<a href="{creator_url}" target="_top" style="font-size:16px;font-weight:900;color:#f0f0f5;text-decoration:none;flex:1;">{creator["name"]}</a>'
+                f'<span style="font-size:11px;color:rgba(240,240,245,0.4);">月間合計</span>'
+                f'<span style="font-size:18px;font-weight:900;color:#f97316;">¥{creator["total"]:,}</span>'
+                f'</div>'
+                f'{sup_rows_html}'
+                f'</div>'
+            )
+            st.markdown(card_html, unsafe_allow_html=True)
+
+    # フッター（OshiPay宣伝）
+    footer_html = (
+        f'<div style="margin-top:40px;padding:20px 24px;background:rgba(249,115,22,0.08);border:1px solid rgba(249,115,22,0.3);border-radius:16px;text-align:center;">'
+        f'<div style="font-size:20px;font-weight:900;color:#f97316;margin-bottom:6px;">🔥 OshiPayで推しを応援しよう</div>'
+        f'<div style="font-size:12px;color:rgba(240,240,245,0.55);margin-bottom:12px;">あなたの応援がランキングに刻まれます</div>'
+        f'<span style="font-size:12px;color:#f97316;background:rgba(249,115,22,0.15);padding:6px 14px;border-radius:8px;">{BASE_URL}</span>'
+        f'</div>'
+    )
+    st.markdown(footer_html, unsafe_allow_html=True)
+    st.stop()
+
 # ── 開発ナビゲーション ──
 if page == "nav":
     st.markdown('<div class="oshi-logo"><span class="icon">🔥</span> <span class="text">OshiPay</span></div>', unsafe_allow_html=True)
@@ -901,6 +1010,8 @@ if page == "nav":
     _qname = urllib.parse.quote("テストクリエイター")
     def _nav_header(txt):
         st.markdown(f'<div style="font-size:13px;font-weight:700;color:rgba(240,240,245,0.5);letter-spacing:0.08em;margin:20px 0 8px;">{txt}</div>', unsafe_allow_html=True)
+    _nav_header("🌐 公開ページ")
+    st.link_button("🏆 月間ランキング（公開用）", f"{BASE_URL}?page=ranking", use_container_width=True)
     _nav_header("🧭 サポーター導線")
     st.link_button("🏠 LP（サービス紹介）", f"{BASE_URL}?page=lp", use_container_width=True)
     st.link_button("🔥 応援ページ（クリエイターに投げ銭）", f"{BASE_URL}?page=support&user=test&acct={_acct}&name={_qname}&icon=%F0%9F%8E%A4", use_container_width=True)
