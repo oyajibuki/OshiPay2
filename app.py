@@ -18,7 +18,7 @@ from PIL import Image
 # ── ページ設定 ──
 st.set_page_config(
     page_title="OshiPay",
-    layout="centered",
+    layout="wide",
     initial_sidebar_state="collapsed",
 )
 
@@ -435,13 +435,13 @@ if page == "dashboard":
 IS_LEGAL_PAGE = page in ["terms", "privacy", "legal"]
 
 if page == "lp":
-    st.markdown("<style>.stMainBlockContainer, .block-container { max-width: none !important; padding: 0 !important; margin: 0 !important; }</style>", unsafe_allow_html=True)
+    st.markdown("<style>.stMainBlockContainer, .block-container { max-width: none !important; padding: 0 !important; margin: 0 !important; width: 100% !important; }</style>", unsafe_allow_html=True)
 elif IS_LEGAL_PAGE:
-    st.markdown("<style>.stMainBlockContainer, .block-container { max-width: 800px !important; margin: 0 auto; }</style>", unsafe_allow_html=True)
+    st.markdown("<style>.stMainBlockContainer, .block-container { max-width: 800px !important; margin: 0 auto !important; }</style>", unsafe_allow_html=True)
 elif page in ["reply_view", "ranking"]:
-    st.markdown("<style>.stMainBlockContainer, .block-container { max-width: 700px !important; margin: 0 auto; }</style>", unsafe_allow_html=True)
+    st.markdown("<style>.stMainBlockContainer, .block-container { max-width: 700px !important; margin: 0 auto !important; }</style>", unsafe_allow_html=True)
 else:
-    st.markdown("<style>.stMainBlockContainer, .block-container { max-width: 460px !important; margin: 0 auto; }</style>", unsafe_allow_html=True)
+    st.markdown("<style>.stMainBlockContainer, .block-container { max-width: 460px !important; margin: 0 auto !important; }</style>", unsafe_allow_html=True)
 
 # ── 外部HTMLファイルの表示 ──
 LEGAL_MAP = {
@@ -461,6 +461,15 @@ if page in LEGAL_MAP:
 if page == "lp":
     lp_html = read_html_file("oshipay-lp/index.html")
     st.markdown("""
+    <script>
+    (function(){
+        window.addEventListener('message', function(e) {
+            if (e.data && e.data.type === 'lp_height') {
+                const height = e.data.height;
+            }
+        });
+    })();
+    </script>
     <style>
     /* スマホ実機（～540px）のみ高さ拡張 */
     @media (max-width: 540px) {
@@ -470,9 +479,16 @@ if page == "lp":
             min-height: 6200px !important;
         }
     }
+    /* PC/タブレット: iframe自体が縦に伸びすぎないようにする */
+    @media (min-width: 541px) {
+        [data-testid="stIFrame"],
+        [data-testid="stIFrame"] > iframe {
+            max-height: 5250px !important;
+        }
+    }
     </style>
     """, unsafe_allow_html=True)
-    components.html(lp_html, height=5350)
+    components.html(lp_html, height=5250)
     lp_bottom_html = (
         f'<div style="text-align:center;padding:16px 0 8px;">'
         f'<a href="{BASE_URL}?page=ranking" target="_top" style="display:inline-block;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.5);padding:10px 24px;border-radius:12px;color:#fbbf24;text-decoration:none;font-weight:700;font-size:14px;">🏆 月間応援ランキングを見る</a>'
