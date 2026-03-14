@@ -18,7 +18,8 @@ from PIL import Image
 # ── ページ設定 ──
 st.set_page_config(
     page_title="OshiPay",
-    layout="wide",
+    page_icon="https://oyajibuki.github.io/OshiPay/favicon.png?v=2",
+    layout="centered",
     initial_sidebar_state="collapsed",
 )
 
@@ -459,45 +460,19 @@ if page in LEGAL_MAP:
 
 # ── ランディングページ ──
 if page == "lp":
-    lp_html = read_html_file("oshipay-lp/index.html")
-    st.markdown("""
-    <script>
-    (function(){
-        window.addEventListener('message', function(e) {
-            if (e.data && e.data.type === 'lp_height') {
-                const height = e.data.height;
-            }
-        });
-    })();
-    </script>
-    <style>
-    /* スマホ実機（～540px）のみ高さ拡張 */
-    @media (max-width: 540px) {
-        [data-testid="stIFrame"],
-        [data-testid="stIFrame"] > iframe {
-            height: 6200px !important;
-            min-height: 6200px !important;
-        }
-    }
-    /* PC/タブレット: iframe自体が縦に伸びすぎないようにする */
-    @media (min-width: 541px) {
-        [data-testid="stIFrame"],
-        [data-testid="stIFrame"] > iframe {
-            max-height: 5250px !important;
-        }
-    }
-    </style>
+    # ── 新アーキテクチャ: 自動転送 ──
+    NEW_LP_URL = "https://oyajibuki.github.io/OshiPay/"
+    
+    st.markdown(f"""
+        <div style="text-align: center; padding: 50px; font-family: sans-serif;">
+            <h2 style="color: white;">公式サイトへ移動しています...</h2>
+            <p style="color: rgba(255,255,255,0.6);">自動的に移動しない場合は、<a href="{NEW_LP_URL}" style="color: #8b5cf6;">こちら</a>をクリックしてください。</p>
+        </div>
+        <script>
+            window.location.href = "{NEW_LP_URL}";
+        </script>
     """, unsafe_allow_html=True)
-    components.html(lp_html, height=5250)
-    lp_bottom_html = (
-        f'<div style="text-align:center;padding:16px 0 8px;">'
-        f'<a href="{BASE_URL}?page=ranking" target="_top" style="display:inline-block;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.5);padding:10px 24px;border-radius:12px;color:#fbbf24;text-decoration:none;font-weight:700;font-size:14px;">🏆 月間応援ランキングを見る</a>'
-        f'</div>'
-        f'<div style="text-align:center;padding-bottom:40px;">'
-        f'<a href="{BASE_URL}?page=supporter_dashboard" target="_top" style="display:inline-block;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.5);padding:10px 20px;border-radius:12px;color:#c4b5fd;text-decoration:none;font-weight:700;font-size:14px;">🦸 過去の応援を管理する（サポーターダッシュボードへ）</a>'
-        f'</div>'
-    )
-    st.markdown(lp_bottom_html, unsafe_allow_html=True)
+    st.stop()
     st.stop()
 
 # ── 成功ページ ──
