@@ -4,6 +4,12 @@ import base64
 import uuid
 import random
 import datetime
+import json
+from governance import (
+    validate_password, validate_username, validate_display_name,
+    validate_bio, validate_sns_url, validate_image_file,
+    check_slug_taken, check_slug_locked,
+)
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -439,7 +445,7 @@ if page == "lp":
     st.markdown("<style>.stMainBlockContainer, .block-container { max-width: none !important; padding: 0 !important; margin: 0 !important; width: 100% !important; }</style>", unsafe_allow_html=True)
 elif IS_LEGAL_PAGE:
     st.markdown("<style>.stMainBlockContainer, .block-container { max-width: 800px !important; margin: 0 auto !important; }</style>", unsafe_allow_html=True)
-elif page in ["reply_view", "ranking"]:
+elif page in ["reply_view", "ranking", "profile"]:
     st.markdown("<style>.stMainBlockContainer, .block-container { max-width: 700px !important; margin: 0 auto !important; }</style>", unsafe_allow_html=True)
 else:
     st.markdown("<style>.stMainBlockContainer, .block-container { max-width: 460px !important; margin: 0 auto !important; }</style>", unsafe_allow_html=True)
@@ -476,6 +482,157 @@ if page == "lp":
         </script>
     """, height=0)
     st.stop()
+    st.stop()
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# ── クリエイタープロフィール設定ページ ──
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+if page == "profile":
+    st.markdown('<div class="oshi-logo"><span class="text">OshiPay</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">プロフィール設定</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-subtitle">あなたのページを作成しましょう</div>', unsafe_allow_html=True)
+
+    # 認証チェック
+    acct_id = params.get("acct") or st.session_state.get("creator_auth")
+    if not acct_id:
+        st.error("ログインが必要です。")
+        st.stop()
+
+    # 既存プロフィールの読み込み
+    try:
+        _prof_resp = get_db().table("creators").select("*").eq("acct_id", acct_id).execute()
+        _existing = _prof_resp.data[0] if _prof_resp.data else {}
+    except Exception:
+        _existing = {}
+
+    with st.form("profile_form", clear_on_submit=False):
+        st.markdown("#### 👤 ユーザーID（URL）")
+        st.caption(f"設定するとあなたのページが `oshipay.com/ユーザーID` で公開されます")
+        p_slug = st.text_input(
+            "ユーザーID", value=_existing.get("slug", ""),
+            placeholder="例: hanako-music（3〜20文字・英数字・ハイフンのみ）",
+            max_chars=20
+        )
+
+        st.markdown("#### ✨ 表示名")
+        p_display = st.text_input(
+            "表示名", value=_existing.get("display_name", ""),
+            placeholder="例: 花子🎤（1〜30文字・絵文字OK）",
+            max_chars=30
+        )
+
+        st.markdown("#### 📝 プロフィール文")
+        p_bio = st.text_area(
+            "プロフィール（最大500文字）",
+            value=_existing.get("bio", ""),
+            placeholder="自己紹介を入力してください。\n※電話番号・メール・LINE IDは記載できません（詐欺防止）",
+            max_chars=500,
+            height=140
+        )
+        st.caption(f"{len(p_bio)}/500文字")
+
+        st.markdown("#### 🎵 ジャンル")
+        p_genre = st.selectbox(
+            "ジャンル",
+            options=["", "音楽", "イラスト・アート", "写真", "動画・配信", "ダンス", "料理・グルメ", "スポーツ", "教育・講師", "その他"],
+            index=0 if not _existing.get("genre") else (
+                ["", "音楽", "イラスト・アート", "写真", "動画・配信", "ダンス", "料理・グルメ", "スポーツ", "教育・講師", "その他"].index(_existing.get("genre", ""))
+                if _existing.get("genre", "") in ["", "音楽", "イラスト・アート", "写真", "動画・配信", "ダンス", "料理・グルメ", "スポーツ", "教育・講師", "その他"] else 0
+            )
+        )
+
+        st.markdown("#### 🖼️ アイコン画像")
+        st.caption("JPEG / PNG のみ・2MB以下")
+        p_photo = st.file_uploader("アイコン画像をアップロード", type=["jpg", "jpeg", "png"], key="profile_photo")
+        if _existing.get("photo_url"):
+            st.markdown(f'<img src="{_existing["photo_url"]}" width="72" style="border-radius:50%;margin-top:6px;">', unsafe_allow_html=True)
+
+        st.markdown("#### 🔗 SNSリンク")
+        st.caption("X・Instagram・YouTube・TikTok・noteのURLのみ登録できます")
+        _existing_sns = _existing.get("sns_links") or {}
+        p_sns_x    = st.text_input("X（旧Twitter）", value=_existing_sns.get("x", ""), placeholder="https://x.com/username")
+        p_sns_ig   = st.text_input("Instagram",       value=_existing_sns.get("instagram", ""), placeholder="https://instagram.com/username")
+        p_sns_yt   = st.text_input("YouTube",         value=_existing_sns.get("youtube", ""), placeholder="https://youtube.com/@username")
+        p_sns_tt   = st.text_input("TikTok",          value=_existing_sns.get("tiktok", ""), placeholder="https://tiktok.com/@username")
+        p_sns_note = st.text_input("note",             value=_existing_sns.get("note", ""), placeholder="https://note.com/username")
+
+        submitted = st.form_submit_button("💾 保存する", type="primary", use_container_width=True)
+
+    if submitted:
+        _errors = []
+
+        # ── バリデーション ──
+        _slug_ok, _slug_err = validate_username(p_slug)
+        if not _slug_ok:
+            _errors.append(_slug_err)
+        else:
+            # 重複チェック（自分のslugは除外）
+            if p_slug.lower() != (_existing.get("slug") or "").lower():
+                if check_slug_taken(get_db(), p_slug) or check_slug_locked(get_db(), p_slug):
+                    _errors.append("このユーザーIDはすでに使用されています。")
+
+        _name_ok, _name_err = validate_display_name(p_display)
+        if not _name_ok:
+            _errors.append(_name_err)
+
+        _bio_ok, _bio_err = validate_bio(p_bio)
+        if not _bio_ok:
+            _errors.append(_bio_err)
+
+        _img_ok, _img_err = validate_image_file(p_photo, max_mb=2.0)
+        if not _img_ok:
+            _errors.append(_img_err)
+
+        for _sns_name, _sns_url in [("X", p_sns_x), ("Instagram", p_sns_ig), ("YouTube", p_sns_yt), ("TikTok", p_sns_tt), ("note", p_sns_note)]:
+            _sns_ok, _sns_err = validate_sns_url(_sns_url)
+            if not _sns_ok:
+                _errors.append(f"{_sns_name}: {_sns_err}")
+
+        if _errors:
+            for e in _errors:
+                st.error(f"⚠️ {e}")
+        else:
+            # ── 画像アップロード（Supabase Storage）──
+            _photo_url = _existing.get("photo_url", "")
+            if p_photo is not None:
+                try:
+                    _img_bytes = p_photo.read()
+                    _ext = "jpg" if p_photo.type in ["image/jpeg", "image/jpg"] else "png"
+                    _storage_path = f"icons/{acct_id}.{_ext}"
+                    get_db().storage.from_("creator-photos").upload(
+                        _storage_path, _img_bytes,
+                        file_options={"content-type": p_photo.type, "upsert": "true"}
+                    )
+                    _photo_url = get_db().storage.from_("creator-photos").get_public_url(_storage_path)
+                except Exception as _e:
+                    st.warning(f"画像のアップロードに失敗しました: {_e}")
+
+            # ── SNSリンクまとめ ──
+            _sns_links = {
+                k: v.strip() for k, v in {
+                    "x": p_sns_x, "instagram": p_sns_ig,
+                    "youtube": p_sns_yt, "tiktok": p_sns_tt, "note": p_sns_note
+                }.items() if v.strip()
+            }
+
+            # ── DB保存 ──
+            try:
+                get_db().table("creators").update({
+                    "slug":         p_slug.lower(),
+                    "display_name": p_display,
+                    "bio":          p_bio,
+                    "genre":        p_genre,
+                    "photo_url":    _photo_url,
+                    "sns_links":    json.dumps(_sns_links, ensure_ascii=False),
+                    "profile_done": True,
+                }).eq("acct_id", acct_id).execute()
+                st.success("✅ プロフィールを保存しました！")
+                st.balloons()
+                # ダッシュボードへ戻る
+                st.markdown(f'<meta http-equiv="refresh" content="2;url=?page=dashboard&acct={acct_id}">', unsafe_allow_html=True)
+            except Exception as _e:
+                st.error(f"保存に失敗しました: {_e}")
+
     st.stop()
 
 # ── 成功ページ ──
@@ -1412,12 +1569,24 @@ else: # Dashboard
         
         with tab_new:
             st.info("新しく応援受け取りを開始するには、管理用パスワードを作成してください。")
+            st.caption("🔐 パスワード条件: 8文字以上・英字＋数字必須・同じ文字の3連続禁止（例: Oshi1234）")
             new_pass = st.text_input("管理用パスワードを作成", type="password", key="new_pass")
+
+            # パスワードリアルタイムバリデーション
+            _pass_ok = False
+            if new_pass:
+                _pass_ok, _pass_err = validate_password(new_pass)
+                if not _pass_ok:
+                    st.error(f"⚠️ {_pass_err}")
+                else:
+                    st.success("✅ パスワードOK")
 
             # 明示的なボタンによる発行の意思確認
             if st.checkbox("利用規約に同意して、新規にQRコードを発行して応援を受け取りますか？"):
                 if not new_pass:
                     st.warning("パスワードを入力してください。")
+                elif not _pass_ok:
+                    st.warning("パスワードの条件を満たしてください。")
                 elif "onboarding_url" not in st.session_state:
                     if st.button("🔗 Stripeアカウントを連携する"):
                         with st.spinner("Stripeと連携する準備をしています... (数秒かかります)"):
@@ -1531,15 +1700,46 @@ else: # Dashboard
                     st.error("パスワードが違います。")
             st.stop()
             
+        # プロフィール設定状況を確認
+        _prof_check = get_db().table("creators").select("profile_done,slug,display_name,photo_url").eq("acct_id", acct_id).execute()
+        _prof_data  = _prof_check.data[0] if _prof_check.data else {}
+        _profile_done = _prof_data.get("profile_done", False)
+
         st.markdown(f"""
-        <div style="background: rgba(139,92,246,0.1); border: 1px solid rgba(139,92,246,0.2); border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+        <div style="background: rgba(139,92,246,0.1); border: 1px solid rgba(139,92,246,0.2); border-radius: 12px; padding: 16px; margin-bottom: 16px;">
             <div style="color: #8b5cf6; font-weight: 700; font-size: 14px; margin-bottom: 4px;">✅ Stripe連携済み</div>
             <div style="font-size: 12px; color: rgba(240,240,245,0.6); margin-bottom: 12px;">ID: <code>{acct_id}</code></div>
-            <div style="font-size: 11px; color: #f97316; font-weight: 700; margin-bottom: 8px;">ブラウザを閉じるとログアウトされます。必ずこのページをブックマークして保存してください！</div>
+            <div style="font-size: 11px; color: #f97316; font-weight: 700;">ブラウザを閉じるとログアウトされます。必ずこのページをブックマークして保存してください！</div>
         </div>
         """, unsafe_allow_html=True)
-        
-        name = st.text_input("表示名", value=st.session_state.get("name", ""))
+
+        # プロフィール設定バナー
+        _profile_url = f"{BASE_URL}?page=profile&acct={acct_id}"
+        if not _profile_done:
+            st.markdown(f"""
+            <a href="{_profile_url}" target="_top"
+               style="display:block; text-align:center; background:rgba(249,115,22,0.15);
+                      border:2px solid rgba(249,115,22,0.5); border-radius:12px;
+                      padding:14px 16px; color:#fb923c; text-decoration:none;
+                      font-weight:700; font-size:14px; margin-bottom:16px;">
+                🎨 プロフィールを設定する（未設定）
+                <div style="font-size:11px;font-weight:400;color:rgba(249,115,22,0.7);margin-top:4px;">ユーザーID・表示名・SNSリンクなどを設定してください</div>
+            </a>
+            """, unsafe_allow_html=True)
+        else:
+            _slug_disp = _prof_data.get("slug", "")
+            _name_disp = _prof_data.get("display_name", "")
+            st.markdown(f"""
+            <a href="{_profile_url}" target="_top"
+               style="display:block; text-align:center; background:rgba(76,217,100,0.08);
+                      border:1px solid rgba(76,217,100,0.3); border-radius:12px;
+                      padding:10px 16px; color:#4cd964; text-decoration:none;
+                      font-size:13px; margin-bottom:16px;">
+                ✅ プロフィール設定済み（{_name_disp} / {_slug_disp}）　→ 編集する
+            </a>
+            """, unsafe_allow_html=True)
+
+        name = st.text_input("表示名（QR用）", value=_prof_data.get("display_name") or st.session_state.get("name", ""))
         icon = st.selectbox("アイコン", list(ICON_OPTIONS.keys()))
         
         col1, col2 = st.columns([2, 1])

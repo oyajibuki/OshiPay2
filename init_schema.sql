@@ -1,5 +1,7 @@
--- Supabase Dashboard の SQL Editor で以下のSQLを実行してください。
--- ※ supports テーブルがまだない場合は全部実行、すでにある場合は「既存テーブルの拡張」以降だけ実行
+-- ============================================
+-- OshiPay DB セットアップ（完全版・冪等）
+-- 何度実行しても安全（IF NOT EXISTS / DROP IF EXISTS を使用）
+-- ============================================
 
 -- ========================================
 -- 1. 応援データテーブル（まだ存在しない場合）
@@ -50,3 +52,40 @@ ALTER TABLE public.supports ADD COLUMN IF NOT EXISTS supporter_id TEXT;
 
 -- パフォーマンス向上のためのインデックス
 CREATE INDEX IF NOT EXISTS idx_supports_supporter_id ON public.supports(supporter_id);
+
+-- ========================================
+-- 5. creators テーブルにプロフィールカラム追加
+--    ※ フェーズ1 ガバナンス対応
+-- ========================================
+-- ユーザーID（URL slug）: oshipay.com/username
+ALTER TABLE public.creators ADD COLUMN IF NOT EXISTS slug          TEXT UNIQUE;
+-- 表示名（ニックネーム）
+ALTER TABLE public.creators ADD COLUMN IF NOT EXISTS display_name  TEXT;
+-- プロフィール文章（最大500文字）
+ALTER TABLE public.creators ADD COLUMN IF NOT EXISTS bio           TEXT DEFAULT '';
+-- ジャンル
+ALTER TABLE public.creators ADD COLUMN IF NOT EXISTS genre         TEXT DEFAULT '';
+-- アイコン画像URL（Supabase Storage）
+ALTER TABLE public.creators ADD COLUMN IF NOT EXISTS photo_url     TEXT DEFAULT '';
+-- SNSリンク（JSON形式: {"x":"https://...","instagram":"https://..."}）
+ALTER TABLE public.creators ADD COLUMN IF NOT EXISTS sns_links     JSONB DEFAULT '{}';
+-- アカウント削除フラグ（削除後もslugをロック保持）
+ALTER TABLE public.creators ADD COLUMN IF NOT EXISTS is_deleted    BOOLEAN DEFAULT FALSE;
+-- プロフィール設定完了フラグ
+ALTER TABLE public.creators ADD COLUMN IF NOT EXISTS profile_done  BOOLEAN DEFAULT FALSE;
+
+-- slug 検索用インデックス
+CREATE INDEX IF NOT EXISTS idx_creators_slug ON public.creators(slug);
+-- 削除済みアカウントのインデックス
+CREATE INDEX IF NOT EXISTS idx_creators_is_deleted ON public.creators(is_deleted);
+
+-- ========================================
+-- 6. 削除済みslugロックテーブル
+--    アカウント削除後もURLをロック（なりすまし防止）
+-- ========================================
+CREATE TABLE IF NOT EXISTS public.deleted_slugs (
+    slug        TEXT PRIMARY KEY,
+    acct_id     TEXT NOT NULL,
+    deleted_at  TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.deleted_slugs DISABLE ROW LEVEL SECURITY;
